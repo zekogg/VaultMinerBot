@@ -282,11 +282,11 @@ if (url.pathname === "/api/webhook" && request.method === "POST") {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: msg.chat.id,
-        text: "⛏️ Welcome to Lucky Miner!",
+        text: "⛏️ Welcome to Vault Miner!",
         reply_markup: {
           inline_keyboard: [[{
-            text: "🚀 Open Lucky Miner",
-            web_app: { url: `https://vaultminerbot.workers.dev` }
+            text: "🚀 Open Vault Miner",
+            web_app: { url: `https://vaultminerbot.thekingwarrior9.workers.dev` }
           }]]
         }
       })
