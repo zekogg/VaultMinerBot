@@ -1,13 +1,3 @@
-// Lucky Miner - Cloudflare Worker (ES Module)
-// Bindings required (wrangler.toml):
-//   [[d1_databases]] binding = "DB"
-// Environment variables required:
-//   BOT_TOKEN           - Telegram bot token
-//   ADMIN_CHANNEL_ID    - Telegram channel/chat id for admin notifications (e.g. -1001234567890)
-//   DEPOSIT_ADDRESS     - your wallet address (شخصي - تضيفه لاحقاً)
-//   NETWORK_FEE         - withdrawal network fee (number, default 1)
-//   DAILY_RATE          - daily mining rate (number, default 0.5)
-//   BOT_USERNAME        - bot username without @ (for referral links)
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -281,7 +271,10 @@ export default {
         return json({ ok: true, net });
       }
 
-      return json({ error: "not_found" }, 404);
+      if (url.pathname.startsWith("/api/")) {
+  return json({ error: "not_found" }, 404);
+}
+return env.ASSETS.fetch(request);
     } catch (e) {
       return json({ error: String(e.message || e) }, 500);
     }
