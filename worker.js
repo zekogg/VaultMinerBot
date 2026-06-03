@@ -271,6 +271,30 @@ export default {
         return json({ ok: true, net });
       }
 
+// Telegram Webhook
+if (url.pathname === "/api/webhook" && request.method === "POST") {
+  const update = await request.json().catch(() => ({}));
+  const msg = update.message;
+  if (msg && msg.text === "/start") {
+    const refParam = msg.text.split(" ")[1] || "";
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: msg.chat.id,
+        text: "⛏️ Welcome to Lucky Miner!",
+        reply_markup: {
+          inline_keyboard: [[{
+            text: "🚀 Open Lucky Miner",
+            web_app: { url: `https://vaultminerbot.workers.dev` }
+          }]]
+        }
+      })
+    });
+  }
+  return json({ ok: true });
+}
+      
       if (url.pathname.startsWith("/api/")) {
   return json({ error: "not_found" }, 404);
 }
