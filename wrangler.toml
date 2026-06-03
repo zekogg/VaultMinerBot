@@ -1,1 +1,14 @@
+name = "vaultminerbot"
+main = "worker.js"
+compatibility_date = "2026-06-02"
+workers_dev = true
 
+[assets]
+directory = "./frontend"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vault_users"
+database_id = "762006a3-45f1-49d5-b716-9c4749d5c891"
