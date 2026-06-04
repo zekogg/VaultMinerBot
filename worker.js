@@ -1,4 +1,3 @@
-
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
@@ -12,7 +11,6 @@ function json(data, status = 200) {
   });
 }
 
-// ---------- Telegram initData verification (HMAC-SHA256) ----------
 async function hmacSha256(keyBytes, msg) {
   const key = await crypto.subtle.importKey(
     "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
@@ -20,6 +18,7 @@ async function hmacSha256(keyBytes, msg) {
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
   return new Uint8Array(sig);
 }
+
 function toHex(buf) {
   return Array.from(buf).map(b => b.toString(16).padStart(2, "0")).join("");
 }
@@ -34,17 +33,14 @@ async function verifyInitData(initData, botToken) {
   for (const [k, v] of params.entries()) pairs.push(`${k}=${v}`);
   pairs.sort();
   const dataCheckString = pairs.join("\n");
-
   const secret = await hmacSha256(new TextEncoder().encode("WebAppData"), botToken);
   const computed = await hmacSha256(secret, dataCheckString);
   if (toHex(computed) !== hash) return null;
-
   const userRaw = params.get("user");
   if (!userRaw) return null;
   try { return JSON.parse(userRaw); } catch { return null; }
 }
 
-// ---------- DB helpers ----------
 async function ensureSchema(env) {
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS users (
@@ -54,6 +50,7 @@ async function ensureSchema(env) {
       balance REAL NOT NULL DEFAULT 0,
       mined REAL NOT NULL DEFAULT 0,
       last_claim INTEGER NOT NULL DEFAULT 0,
+      deposit_amount REAL NOT NULL DEFAULT 0,
       referrer_id INTEGER,
       created_at INTEGER NOT NULL
     )`),
@@ -73,8 +70,9 @@ async function ensureSchema(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS deposits (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      memo TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
+      tx_hash TEXT NOT NULL UNIQUE,
+      amount REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'confirmed',
       created_at INTEGER NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS withdrawals (
@@ -88,7 +86,13 @@ async function ensureSchema(env) {
       created_at INTEGER NOT NULL
     )`),
   ]);
-  // seed default tasks
+
+  // Migrations for existing databases
+  try { await env.DB.prepare("ALTER TABLE users ADD COLUMN deposit_amount REAL NOT NULL DEFAULT 0").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN tx_hash TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN amount REAL DEFAULT 0").run(); } catch {}
+  try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_hash ON deposits(tx_hash)").run(); } catch {}
+
   const { results } = await env.DB.prepare("SELECT COUNT(*) AS c FROM tasks").all();
   if (results[0].c === 0) {
     await env.DB.batch([
@@ -106,23 +110,23 @@ async function getOrCreateUser(env, tgUser, referrerId) {
   let ref = null;
   if (referrerId && Number(referrerId) !== tgUser.id) ref = Number(referrerId);
   await env.DB.prepare(
-    "INSERT INTO users(id,username,first_name,balance,mined,last_claim,referrer_id,created_at) VALUES(?,?,?,0,0,?,?,?)"
+    "INSERT INTO users(id,username,first_name,balance,mined,last_claim,deposit_amount,referrer_id,created_at) VALUES(?,?,?,0,0,?,0,?,?)"
   ).bind(tgUser.id, tgUser.username || null, tgUser.first_name || null, now, ref, now).run();
-  // referral bonus
   if (ref) {
     await env.DB.prepare("UPDATE users SET balance=balance+1 WHERE id=?").bind(ref).run();
   }
   return await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
 }
 
-function computeMined(user, dailyRate) {
+function computeMined(user) {
   const now = Date.now();
   const elapsedMs = Math.max(0, now - (user.last_claim || now));
-  const perMs = dailyRate / (24 * 60 * 60 * 1000);
+  const depositAmount = user.deposit_amount || 0;
+  const dailyEarning = depositAmount * 0.10; // 10% per day
+  const perMs = dailyEarning / (24 * 60 * 60 * 1000);
   return elapsedMs * perMs;
 }
 
-// ---------- Telegram notify ----------
 async function notifyChannel(env, text) {
   if (!env.BOT_TOKEN || !env.ADMIN_CHANNEL_ID) return;
   try {
@@ -136,10 +140,9 @@ async function notifyChannel(env, text) {
         disable_web_page_preview: true,
       }),
     });
-  } catch (e) { /* ignore */ }
+  } catch {}
 }
 
-// ---------- Auth wrapper ----------
 async function auth(request, env) {
   const initData = request.headers.get("X-Init-Data") || "";
   const user = await verifyInitData(initData, env.BOT_TOKEN);
@@ -147,7 +150,6 @@ async function auth(request, env) {
   return user;
 }
 
-// ---------- Routes ----------
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -155,33 +157,38 @@ export default {
 
     try {
       await ensureSchema(env);
-      const DAILY = Number(env.DAILY_RATE || 0.5);
       const FEE = Number(env.NETWORK_FEE || 1);
 
-      // Init endpoint (open to allow first-time table creation)
       if (url.pathname === "/api/init") return json({ ok: true });
 
-      // me - login / current state
+      // me
       if (url.pathname === "/api/me" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         const user = await getOrCreateUser(env, tgUser, body.ref);
-        const mined = computeMined(user, DAILY);
+        const mined = computeMined(user);
         return json({
           user: {
-            id: user.id, username: user.username, first_name: user.first_name,
-            balance: user.balance, mined, last_claim: user.last_claim,
+            id: user.id,
+            username: user.username,
+            first_name: user.first_name,
+            balance: user.balance,
+            mined,
+            last_claim: user.last_claim,
+            deposit_amount: user.deposit_amount || 0,
           },
-          config: { daily_rate: DAILY, fee: FEE, bot_username: env.BOT_USERNAME || "" },
+          config: { fee: FEE, bot_username: env.BOT_USERNAME || "" },
         });
       }
 
-      // claim mined
+      // claim - minimum 0.1 TON
       if (url.pathname === "/api/claim" && request.method === "POST") {
-        const tgUser = await auth(request, env); if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
-        const mined = computeMined(user, DAILY);
+        const mined = computeMined(user);
+        if (mined < 0.1) return json({ error: "min_collect_0.1" }, 400);
         const now = Date.now();
         await env.DB.prepare("UPDATE users SET balance=balance+?, last_claim=? WHERE id=?")
           .bind(mined, now, user.id).run();
@@ -190,7 +197,8 @@ export default {
 
       // tasks list
       if (url.pathname === "/api/tasks" && request.method === "GET") {
-        const tgUser = await auth(request, env); if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
         const { results: tasks } = await env.DB.prepare("SELECT * FROM tasks WHERE active=1").all();
         const { results: done } = await env.DB.prepare("SELECT task_id FROM task_done WHERE user_id=?").bind(tgUser.id).all();
         const doneSet = new Set(done.map(d => d.task_id));
@@ -199,7 +207,8 @@ export default {
 
       // complete task
       if (url.pathname === "/api/tasks/complete" && request.method === "POST") {
-        const tgUser = await auth(request, env); if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
         const { task_id } = await request.json();
         const task = await env.DB.prepare("SELECT * FROM tasks WHERE id=? AND active=1").bind(task_id).first();
         if (!task) return json({ error: "task_not_found" }, 404);
@@ -212,41 +221,100 @@ export default {
         return json({ ok: true, reward: task.reward });
       }
 
-      // friends / referrals
+      // friends
       if (url.pathname === "/api/friends" && request.method === "GET") {
-        const tgUser = await auth(request, env); if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
         const { results } = await env.DB.prepare(
           "SELECT id, username, first_name, created_at FROM users WHERE referrer_id=? ORDER BY created_at DESC LIMIT 100"
         ).bind(tgUser.id).all();
         return json({ friends: results, link: `https://t.me/${env.BOT_USERNAME || "your_bot"}?start=${tgUser.id}` });
       }
 
-      // deposit info (wallet address + memo for this user)
+      // deposit info - user ID only as comment (no LM prefix)
       if (url.pathname === "/api/deposit" && request.method === "GET") {
-        const tgUser = await auth(request, env); if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const memo = `LM${tgUser.id}`;
-        return json({ address: env.DEPOSIT_ADDRESS || "", memo });
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        return json({ address: env.DEPOSIT_ADDRESS || "", memo: String(tgUser.id) });
       }
 
-      // deposit check (notifies admin channel to verify manually)
+      // deposit check - polls TONCenter once per request, frontend polls every 5s
       if (url.pathname === "/api/deposit/check" && request.method === "POST") {
-        const tgUser = await auth(request, env); if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const memo = `LM${tgUser.id}`;
-        await env.DB.prepare("INSERT INTO deposits(user_id,memo,status,created_at) VALUES(?,?, 'pending',?)")
-          .bind(tgUser.id, memo, Date.now()).run();
-        await notifyChannel(env,
-          `🟡 <b>Deposit Check Request</b>\n` +
-          `User: <code>${tgUser.id}</code> (@${tgUser.username || "-"})\n` +
-          `Name: ${tgUser.first_name || "-"}\n` +
-          `Memo: <code>${memo}</code>\n` +
-          `Please verify the incoming transaction and credit the user manually.`
-        );
-        return json({ ok: true });
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+
+        const depositAddress = env.DEPOSIT_ADDRESS || "";
+        if (!depositAddress) return json({ error: "deposit_not_configured" }, 500);
+
+        const comment = String(tgUser.id);
+
+        const headers = { "Accept": "application/json" };
+        if (env.TONCENTER_API_KEY) headers["X-API-Key"] = env.TONCENTER_API_KEY;
+
+        let tonData;
+        try {
+          const tonRes = await fetch(
+            `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(depositAddress)}&limit=50&archival=false`,
+            { headers }
+          );
+          tonData = await tonRes.json();
+        } catch {
+          return json({ error: "toncenter_unavailable" }, 503);
+        }
+
+        if (!tonData?.ok || !Array.isArray(tonData.result)) return json({ found: false });
+
+        for (const tx of tonData.result) {
+          const inMsg = tx.in_msg;
+          // Skip outgoing transactions (no source = outgoing)
+          if (!inMsg || !inMsg.source || inMsg.source === "") continue;
+          // Skip zero value
+          if (!inMsg.value || Number(inMsg.value) === 0) continue;
+          // Comment must match exactly the user's Telegram ID
+          if ((inMsg.message || "").trim() !== comment) continue;
+
+          const txHash = tx.transaction_id?.hash;
+          if (!txHash) continue;
+
+          // Check not already processed
+          const existing = await env.DB.prepare("SELECT 1 FROM deposits WHERE tx_hash=?").bind(txHash).first();
+          if (existing) return json({ found: false, already_processed: true });
+
+          // Convert nanotons to TON
+          const amount = Number(inMsg.value) / 1e9;
+
+          await env.DB.batch([
+            env.DB.prepare("UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?").bind(amount, tgUser.id),
+            env.DB.prepare("INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)").bind(tgUser.id, txHash, amount, Date.now()),
+          ]);
+
+          return json({ ok: true, found: true, amount });
+        }
+
+        return json({ found: false });
       }
 
-      // withdraw request
+      // reinvest - move balance to deposit_amount, minimum 0.1 TON
+      if (url.pathname === "/api/reinvest" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { amount } = await request.json();
+        const amt = Number(amount);
+        if (!amt || amt < 0.1) return json({ error: "min_reinvest_0.1" }, 400);
+        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+        if (!user) return json({ error: "user_not_found" }, 404);
+        if (user.balance < amt) return json({ error: "insufficient_balance" }, 400);
+        await env.DB.prepare(
+          "UPDATE users SET balance=balance-?, deposit_amount=deposit_amount+? WHERE id=?"
+        ).bind(amt, amt, tgUser.id).run();
+        const updated = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, deposit_amount: updated.deposit_amount, balance: updated.balance });
+      }
+
+      // withdraw
       if (url.pathname === "/api/withdraw" && request.method === "POST") {
-        const tgUser = await auth(request, env); if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
         const { amount, address } = await request.json();
         const amt = Number(amount);
         if (!amt || amt <= 0 || !address) return json({ error: "invalid_input" }, 400);
@@ -256,8 +324,7 @@ export default {
         const net = amt - FEE;
         await env.DB.batch([
           env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(amt, tgUser.id),
-          env.DB.prepare("INSERT INTO withdrawals(user_id,amount,fee,net,address,status,created_at) VALUES(?,?,?,?,?, 'pending',?)")
-            .bind(tgUser.id, amt, FEE, net, address, Date.now()),
+          env.DB.prepare("INSERT INTO withdrawals(user_id,amount,fee,net,address,status,created_at) VALUES(?,?,?,?,?,'pending',?)").bind(tgUser.id, amt, FEE, net, address, Date.now()),
         ]);
         await notifyChannel(env,
           `🔴 <b>Withdrawal Request</b>\n` +
@@ -271,34 +338,31 @@ export default {
         return json({ ok: true, net });
       }
 
-// Telegram Webhook
-if (url.pathname === "/api/webhook" && request.method === "POST") {
-  const update = await request.json().catch(() => ({}));
-  const msg = update.message;
-  if (msg && msg.text === "/start") {
-    const refParam = msg.text.split(" ")[1] || "";
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: msg.chat.id,
-        text: "⛏️ Welcome to Vault Miner!",
-        reply_markup: {
-          inline_keyboard: [[{
-            text: "🚀 Open Vault Miner",
-            web_app: { url: `https://vaultminerbot.thekingwarrior9.workers.dev` }
-          }]]
+      // Telegram Webhook
+      if (url.pathname === "/api/webhook" && request.method === "POST") {
+        const update = await request.json().catch(() => ({}));
+        const msg = update.message;
+        if (msg && msg.text?.startsWith("/start")) {
+          await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: msg.chat.id,
+              text: "⛏️ Welcome to Vault Miner!",
+              reply_markup: {
+                inline_keyboard: [[{
+                  text: "🚀 Open Vault Miner",
+                  web_app: { url: `https://vaultminerbot.thekingwarrior9.workers.dev` }
+                }]]
+              }
+            })
+          });
         }
-      })
-    });
-  }
-  return json({ ok: true });
-}
-      
-      if (url.pathname.startsWith("/api/")) {
-  return json({ error: "not_found" }, 404);
-}
-return env.ASSETS.fetch(request);
+        return json({ ok: true });
+      }
+
+      if (url.pathname.startsWith("/api/")) return json({ error: "not_found" }, 404);
+      return env.ASSETS.fetch(request);
     } catch (e) {
       return json({ error: String(e.message || e) }, 500);
     }
