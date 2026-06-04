@@ -10,7 +10,6 @@ function json(data, status = 200) {
     headers: { "Content-Type": "application/json", ...CORS },
   });
 }
-
 // ════════════════════════════════════════════════════════════
 //  DURABLE OBJECT — DepositChecker
 //  واحد لكل مستخدم — يعمل داخل Cloudflare بغض النظر عن المتصفح
