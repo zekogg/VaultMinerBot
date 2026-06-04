@@ -11,6 +11,172 @@ function json(data, status = 200) {
   });
 }
 
+// ════════════════════════════════════════════════════════════
+//  DURABLE OBJECT — DepositChecker
+//  واحد لكل مستخدم — يعمل داخل Cloudflare بغض النظر عن المتصفح
+// ════════════════════════════════════════════════════════════
+export class DepositChecker {
+  constructor(state, env) {
+    this.state = state;
+    this.env   = env;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    // /start → بدء فحص جديد أو إرجاع الحالي
+    if (url.pathname === "/start" && request.method === "POST") {
+      const currentStatus = await this.state.storage.get("status");
+
+      // فحص نشط → لا تنشئ جديداً
+      if (currentStatus === "pending") {
+        return Response.json({ ok: true, status: "pending", alreadyRunning: true });
+      }
+
+      const { userId, comment } = await request.json();
+
+      await this.state.storage.put("userId",    userId);
+      await this.state.storage.put("comment",   String(comment));
+      await this.state.storage.put("status",    "pending");
+      await this.state.storage.put("startTime", Date.now());
+      await this.state.storage.put("attempts",  0);
+      await this.state.storage.delete("amount");
+
+      // أول فحص بعد 5 ثوانٍ
+      await this.state.storage.setAlarm(Date.now() + 5_000);
+
+      return Response.json({ ok: true, status: "pending" });
+    }
+
+    // /status → إرجاع الحالة الحالية
+    if (url.pathname === "/status" && request.method === "GET") {
+      const status = await this.state.storage.get("status") ?? "idle";
+      const amount = await this.state.storage.get("amount")  ?? null;
+      return Response.json({ status, amount });
+    }
+
+    return Response.json({ error: "not_found" }, { status: 404 });
+  }
+
+  // Alarm — يُطلق كل 15 ثانية من Cloudflare تلقائياً
+  async alarm() {
+    const userId    = await this.state.storage.get("userId");
+    const comment   = await this.state.storage.get("comment");
+    const startTime = await this.state.storage.get("startTime");
+    let   attempts  = (await this.state.storage.get("attempts")) || 0;
+
+    const MAX_ATTEMPTS = 8; // 8 × 15s = 120s (دقيقتان بالضبط)
+
+    attempts++;
+    await this.state.storage.put("attempts", attempts);
+
+    // تحقق من انتهاء الوقت (دقيقتان)
+    if (Date.now() - startTime > 120_000) {
+      await this.state.storage.put("status", "timeout");
+      return;
+    }
+
+    // فحص TonCenter — آخر 7 معاملات فقط
+    const depositAddress = this.env.DEPOSIT_ADDRESS || "";
+    const headers = { "Accept": "application/json" };
+    if (this.env.TONCENTER_API_KEY) headers["X-API-Key"] = this.env.TONCENTER_API_KEY;
+
+    try {
+      const tonRes = await fetch(
+        `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(depositAddress)}&limit=7&archival=false`,
+        { headers }
+      );
+      const tonData = await tonRes.json();
+
+      if (tonData?.ok && Array.isArray(tonData.result)) {
+        for (const tx of tonData.result) {
+          const inMsg = tx.in_msg;
+          if (!inMsg || !inMsg.source || inMsg.source === "") continue;
+          if (!inMsg.value || Number(inMsg.value) === 0) continue;
+          if ((inMsg.message || "").trim() !== comment) continue;
+
+          const txHash = tx.transaction_id?.hash;
+          if (!txHash) continue;
+
+          // هل تمت معالجة هذه المعاملة سابقاً؟
+          const existing = await this.env.DB.prepare(
+            "SELECT 1 FROM deposits WHERE tx_hash=?"
+          ).bind(txHash).first();
+
+          if (existing) {
+            await this.state.storage.put("status", "already_processed");
+            return;
+          }
+
+          const amount = Number(inMsg.value) / 1e9;
+
+          // تحقق من الحد الأدنى: 0.1 TON
+          if (amount < 0.1) {
+            await this.state.storage.put("status", "below_minimum");
+            await this.state.storage.put("amount", amount);
+            return;
+          }
+
+          // أضف الإيداع للقاعدة مرة واحدة فقط
+          try {
+            await this.env.DB.batch([
+              this.env.DB.prepare(
+                "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
+              ).bind(amount, userId),
+              this.env.DB.prepare(
+                "INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)"
+              ).bind(userId, txHash, amount, Date.now()),
+            ]);
+          } catch {
+            // UNIQUE constraint على tx_hash — معالجة مسبقة
+            await this.state.storage.put("status", "already_processed");
+            return;
+          }
+
+          await this.state.storage.put("status", "found");
+          await this.state.storage.put("amount", amount);
+
+          // إشعار المستخدم داخل رسائل البوت
+          await this.notifyUser(userId, amount);
+          return;
+        }
+      }
+    } catch {
+      // TonCenter غير متاح مؤقتاً — حاول مجدداً في الدورة التالية
+    }
+
+    // جدوِل الفحص التالي إذا بقيت محاولات
+    if (attempts < MAX_ATTEMPTS) {
+      await this.state.storage.setAlarm(Date.now() + 15_000);
+    } else {
+      await this.state.storage.put("status", "timeout");
+    }
+  }
+
+  async notifyUser(userId, amount) {
+    if (!this.env.BOT_TOKEN) return;
+    try {
+      await fetch(`https://api.telegram.org/bot${this.env.BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: userId,
+          text:
+            `✅ <b>Deposit Confirmed!</b>\n\n` +
+            `💰 Amount: <b>${amount.toFixed(4)} TON</b>\n` +
+            `📈 Daily earnings: <b>+${(amount * 0.10).toFixed(4)} TON/day</b>\n\n` +
+            `⛏️ Your mining speed has been updated!`,
+          parse_mode: "HTML",
+        }),
+      });
+    } catch {}
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  Helpers
+// ════════════════════════════════════════════════════════════
+
 async function hmacSha256(keyBytes, msg) {
   const key = await crypto.subtle.importKey(
     "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
@@ -87,7 +253,6 @@ async function ensureSchema(env) {
     )`),
   ]);
 
-  // Migrations for existing databases
   try { await env.DB.prepare("ALTER TABLE users ADD COLUMN deposit_amount REAL NOT NULL DEFAULT 0").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN tx_hash TEXT").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN amount REAL DEFAULT 0").run(); } catch {}
@@ -122,7 +287,7 @@ function computeMined(user) {
   const now = Date.now();
   const elapsedMs = Math.max(0, now - (user.last_claim || now));
   const depositAmount = user.deposit_amount || 0;
-  const dailyEarning = depositAmount * 0.10; // 10% per day
+  const dailyEarning = depositAmount * 0.10;
   const perMs = dailyEarning / (24 * 60 * 60 * 1000);
   return elapsedMs * perMs;
 }
@@ -182,7 +347,7 @@ export default {
         });
       }
 
-      // claim - minimum 0.1 TON
+      // claim
       if (url.pathname === "/api/claim" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
@@ -231,70 +396,60 @@ export default {
         return json({ friends: results, link: `https://t.me/${env.BOT_USERNAME || "your_bot"}?start=${tgUser.id}` });
       }
 
-      // deposit info - user ID only as comment (no LM prefix)
+      // deposit info
       if (url.pathname === "/api/deposit" && request.method === "GET") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         return json({ address: env.DEPOSIT_ADDRESS || "", memo: String(tgUser.id) });
       }
 
-      // deposit check - polls TONCenter once per request, frontend polls every 5s
+      // ════ deposit/check → يُشغّل DO ════
       if (url.pathname === "/api/deposit/check" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (!env.DEPOSIT_ADDRESS) return json({ error: "deposit_not_configured" }, 500);
 
-        const depositAddress = env.DEPOSIT_ADDRESS || "";
-        if (!depositAddress) return json({ error: "deposit_not_configured" }, 500);
+        const doId   = env.DEPOSIT_CHECKER.idFromName(`user_${tgUser.id}`);
+        const doStub = env.DEPOSIT_CHECKER.get(doId);
 
-        const comment = String(tgUser.id);
-
-        const headers = { "Accept": "application/json" };
-        if (env.TONCENTER_API_KEY) headers["X-API-Key"] = env.TONCENTER_API_KEY;
-
-        let tonData;
-        try {
-          const tonRes = await fetch(
-            `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(depositAddress)}&limit=50&archival=false`,
-            { headers }
-          );
-          tonData = await tonRes.json();
-        } catch {
-          return json({ error: "toncenter_unavailable" }, 503);
-        }
-
-        if (!tonData?.ok || !Array.isArray(tonData.result)) return json({ found: false });
-
-        for (const tx of tonData.result) {
-          const inMsg = tx.in_msg;
-          // Skip outgoing transactions (no source = outgoing)
-          if (!inMsg || !inMsg.source || inMsg.source === "") continue;
-          // Skip zero value
-          if (!inMsg.value || Number(inMsg.value) === 0) continue;
-          // Comment must match exactly the user's Telegram ID
-          if ((inMsg.message || "").trim() !== comment) continue;
-
-          const txHash = tx.transaction_id?.hash;
-          if (!txHash) continue;
-
-          // Check not already processed
-          const existing = await env.DB.prepare("SELECT 1 FROM deposits WHERE tx_hash=?").bind(txHash).first();
-          if (existing) return json({ found: false, already_processed: true });
-
-          // Convert nanotons to TON
-          const amount = Number(inMsg.value) / 1e9;
-
-          await env.DB.batch([
-            env.DB.prepare("UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?").bind(amount, tgUser.id),
-            env.DB.prepare("INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)").bind(tgUser.id, txHash, amount, Date.now()),
-          ]);
-
-          return json({ ok: true, found: true, amount });
-        }
-
-        return json({ found: false });
+        const doRes = await doStub.fetch("http://do/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: tgUser.id, comment: String(tgUser.id) }),
+        });
+        return new Response(doRes.body, {
+          status: doRes.status,
+          headers: { "Content-Type": "application/json", ...CORS },
+        });
       }
 
-      // reinvest - move balance to deposit_amount, minimum 0.1 TON
+      // ════ deposit/status → يجلب حالة DO ════
+      if (url.pathname === "/api/deposit/status" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+
+        const doId   = env.DEPOSIT_CHECKER.idFromName(`user_${tgUser.id}`);
+        const doStub = env.DEPOSIT_CHECKER.get(doId);
+
+        const doRes = await doStub.fetch("http://do/status");
+        return new Response(doRes.body, {
+          status: doRes.status,
+          headers: { "Content-Type": "application/json", ...CORS },
+        });
+      }
+
+      // ════ deposit/history → آخر 5 إيداعات ════
+      if (url.pathname === "/api/deposit/history" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+
+        const { results } = await env.DB.prepare(
+          "SELECT id, amount, status, created_at FROM deposits WHERE user_id=? ORDER BY created_at DESC LIMIT 5"
+        ).bind(tgUser.id).all();
+        return json({ deposits: results });
+      }
+
+      // reinvest
       if (url.pathname === "/api/reinvest" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
@@ -338,7 +493,7 @@ export default {
         return json({ ok: true, net });
       }
 
-      // Telegram Webhook
+      // webhook
       if (url.pathname === "/api/webhook" && request.method === "POST") {
         const update = await request.json().catch(() => ({}));
         const msg = update.message;
