@@ -22,7 +22,10 @@
       --font: "VT323","Share Tech Mono", ui-monospace, Menlo, Consolas, monospace;
     }
 
-    * { box-sizing: border-box; }
+    * { 
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
 
     html, body {
       margin: 0;
@@ -622,11 +625,12 @@
     }
 
     document.querySelectorAll('.nav button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        switchTab(btn.dataset.tab);
-        if (btn.dataset.tab === 'friends') loadFriends();
-      });
-    });
+  btn.addEventListener('click', () => {
+    switchTab(btn.dataset.tab);
+    if (btn.dataset.tab === 'friends') loadFriends();
+    if (btn.dataset.tab === 'deposit') loadDepositHistory();
+  });
+});
 
     document.getElementById('btnIncreaseSpeed').addEventListener('click', () => switchTab('deposit'));
     document.getElementById('btnWithdrawIncome').addEventListener('click', () => switchTab('withdraw'));
@@ -672,53 +676,74 @@
       navigator.clipboard?.writeText(memo).then(() => showToast('✅ Comment copied!'));
     });
 
-    // ======== Deposit Check - Polls every 5s for 2 minutes ========
-    document.getElementById('btnCheck').addEventListener('click', () => {
-      if (checkInterval) return; // Already checking
+    // ======== Deposit Check - Durable Object ========
+document.getElementById('btnCheck').addEventListener('click', async () => {
+  if (checkInterval) return; // فحص نشط بالفعل
 
-      const btn = document.getElementById('btnCheck');
-      btn.disabled = true;
-      btn.textContent = '⏳ Checking...';
+  const btn = document.getElementById('btnCheck');
+  btn.disabled = true;
+  btn.textContent = '⏳ Checking...';
 
-      let attempts = 0;
-      const maxAttempts = 24; // 24 × 5s = 2 minutes
+  function stopPolling() {
+    clearInterval(checkInterval);
+    checkInterval = null;
+    btn.disabled = false;
+    btn.textContent = 'Check';
+  }
 
-      function stopChecking() {
-        clearInterval(checkInterval);
-        checkInterval = null;
-        btn.disabled = false;
-        btn.textContent = 'Check';
+  // ابدأ DO (أو استرجع الحالي إن كان نشطاً)
+  let startData;
+  try {
+    startData = await apiPost('/api/deposit/check');
+  } catch {
+    stopPolling();
+    showToast('❌ Connection error');
+    return;
+  }
+
+  if (startData.error) {
+    stopPolling();
+    showToast('❌ ' + startData.error);
+    return;
+  }
+
+  // استعلم عن الحالة كل 5 ثوانٍ
+  async function pollStatus() {
+    try {
+      const data = await apiGet('/api/deposit/status');
+
+      if (data.status === 'found') {
+        stopPolling();
+        document.getElementById('depInstr').classList.add('hidden');
+        showToast('✅ Deposit confirmed: +' + parseFloat(data.amount).toFixed(4) + ' TON');
+        await loadUser();
+        await loadDepositHistory();
+        return;
       }
 
-      async function doCheck() {
-        attempts++;
-        try {
-          const data = await apiPost('/api/deposit/check');
-
-          if (data.ok && data.found) {
-            stopChecking();
-            document.getElementById('depInstr').classList.add('hidden');
-            showToast('✅ Deposit confirmed: +' + data.amount.toFixed(4) + ' TON');
-            loadUser();
-            return;
-          }
-
-          if (data.already_processed) {
-            stopChecking();
-            showToast('⚠️ Transaction already processed');
-            return;
-          }
-        } catch {}
-
-        if (attempts >= maxAttempts) {
-          stopChecking();
-          showToast('❌ Transaction not found. Try again later.');
-        }
+      if (data.status === 'already_processed') {
+        stopPolling();
+        showToast('⚠️ Transaction already processed');
+        return;
       }
 
-      doCheck(); // Immediate first check
-      checkInterval = setInterval(doCheck, 5000);
-    });
+      if (data.status === 'below_minimum') {
+        stopPolling();
+        showToast('❌ Min deposit 0.1 TON — sent: ' + parseFloat(data.amount).toFixed(4) + ' TON');
+        return;
+      }
+
+      if (data.status === 'timeout') {
+        stopPolling();
+        showToast('❌ Transaction not found. Try again.');
+        return;
+      }
+      // status === 'pending' → استمر
+    } catch {}
+  }
+
+  checkInterval = setInterval(pollStatus, 5000);
+});
 
     // ======== Reinvest - Real-time Preview (min 0.1 TON) ========
     document.getElementById('reInput').addEventListener('input', function () {
@@ -766,6 +791,41 @@
       else showToast('❌ ' + data.error);
     });
 
+// ======== Load Deposit History ========
+async function loadDepositHistory() {
+  try {
+    const data = await apiGet('/api/deposit/history');
+    const container = document.getElementById('depHistory');
+
+    if (!data.deposits || data.deposits.length === 0) {
+      container.className = 'empty';
+      container.innerHTML = 'No deposits';
+      document.getElementById('depTotal').textContent = (USER.deposit_amount || 0).toFixed(2);
+      return;
+    }
+
+    container.className = '';
+    container.innerHTML = data.deposits.map(d => {
+      const date = new Date(d.created_at).toLocaleString('en-US', {
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      return `
+        <div class="card" style="margin-bottom:10px">
+          <div class="row between" style="align-items:center">
+            <div>
+              <div style="font-size:16px"><b>+${parseFloat(d.amount).toFixed(4)} TON</b></div>
+              <div class="muted small">${date}</div>
+            </div>
+            <div style="color:var(--green)">✅ confirmed</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('depTotal').textContent = (USER.deposit_amount || 0).toFixed(2);
+  } catch {}
+}
+    
     // ======== Friends ========
     document.getElementById('btnInvite').addEventListener('click', () => {
       if (!refLink) return showToast('❌ Load friends first');
