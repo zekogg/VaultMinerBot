@@ -118,19 +118,25 @@ export class DepositChecker {
 
           // أضف الإيداع للقاعدة مرة واحدة فقط
           try {
-            await this.env.DB.batch([
-              this.env.DB.prepare(
-                "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
-              ).bind(amount, userId),
-              this.env.DB.prepare(
-                "INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)"
-              ).bind(userId, txHash, amount, Date.now()),
-            ]);
-          } catch {
-            // UNIQUE constraint على tx_hash — معالجة مسبقة
-            await this.state.storage.put("status", "already_processed");
-            return;
-          }
+  await this.env.DB.batch([
+    this.env.DB.prepare(
+      "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
+    ).bind(amount, userId),
+    this.env.DB.prepare(
+      "INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)"
+    ).bind(userId, txHash, amount, Date.now()),
+  ]);
+} catch (e) {
+  const errMsg = String(e?.message || e).toLowerCase();
+  if (errMsg.includes("unique")) {
+    // tx_hash موجود مسبقاً — الإيداع سُجِّل في دورة سابقة
+    await this.state.storage.put("status", "already_processed");
+    return;
+  }
+  // خطأ آخر في D1 — تخطَّ هذه المعاملة ولا تضبط already_processed
+  // الـ Alarm سيحاول مجدداً في الدورة التالية تلقائياً
+  continue;
+}
 
           await this.state.storage.put("status", "found");
           await this.state.storage.put("amount", amount);
