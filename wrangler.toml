@@ -19,4 +19,4 @@ class_name = "DepositChecker"
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["DepositChecker"]
+new_classes = ["DepositChecker"]
