@@ -709,46 +709,38 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
 
   // استعلم عن الحالة كل 5 ثوانٍ
   async function pollStatus() {
-  try {
-    const data = await apiGet('/api/deposit/status');
-    console.log('[deposit/status]', data);   // ← يظهر في Eruda
+    try {
+      const data = await apiGet('/api/deposit/status');
 
-    if (data.lastError) {
-      console.error('❌ DO lastError:', data.lastError);
-    }
+      if (data.status === 'found') {
+        stopPolling();
+        document.getElementById('depInstr').classList.add('hidden');
+        showToast('✅ Deposit confirmed: +' + parseFloat(data.amount).toFixed(4) + ' TON');
+        await loadUser();
+        await loadDepositHistory();
+        return;
+      }
 
-    if (data.status === 'found') {
-      stopPolling();
-      document.getElementById('depInstr').classList.add('hidden');
-      showToast('✅ Deposit confirmed: +' + parseFloat(data.amount).toFixed(4) + ' TON');
-      await loadUser();
-      await loadDepositHistory();
-      return;
-    }
+      if (data.status === 'already_processed') {
+        stopPolling();
+        showToast('⚠️ Transaction already processed');
+        return;
+      }
 
-    if (data.status === 'already_processed') {
-      stopPolling();
-      showToast('⚠️ Transaction already processed');
-      return;
-    }
+      if (data.status === 'below_minimum') {
+        stopPolling();
+        showToast('❌ Min deposit 0.1 TON — sent: ' + parseFloat(data.amount).toFixed(4) + ' TON');
+        return;
+      }
 
-    if (data.status === 'below_minimum') {
-      stopPolling();
-      showToast('❌ Min deposit 0.1 TON — sent: ' + parseFloat(data.amount).toFixed(4) + ' TON');
-      return;
-    }
-
-    if (data.status === 'timeout') {
-      stopPolling();
-      let errMsg = data.lastError ? ` (${data.lastError})` : '';
-      showToast(`❌ Transaction not found. Try again.${errMsg}`);
-      return;
-    }
-    // status === 'pending' → استمر
-  } catch (err) {
-    console.error('pollStatus exception', err);
+      if (data.status === 'timeout') {
+        stopPolling();
+        showToast('❌ Transaction not found. Try again.');
+        return;
+      }
+      // status === 'pending' → استمر
+    } catch {}
   }
-}
 
   checkInterval = setInterval(pollStatus, 5000);
 });
