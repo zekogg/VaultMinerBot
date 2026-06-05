@@ -77,11 +77,16 @@ async alarm() {
   if (this.env.TONCENTER_API_KEY) headers["X-API-Key"] = this.env.TONCENTER_API_KEY;
 
   try {
-    // ✅ FIX 2: limit رُفع من 7 إلى 20
     const tonRes = await fetch(
-      `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(depositAddress)}&limit=20&archival=false`,
+      `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(depositAddress)}&limit=100&archival=false`,
       { headers }
     );
+
+    if (!tonRes.ok) {
+      await this.state.storage.put("lastError", `TonCenter HTTP ${tonRes.status}`);
+      throw new Error(`TonCenter HTTP ${tonRes.status}`);
+    }
+
     const tonData = await tonRes.json();
 
     if (tonData?.ok && Array.isArray(tonData.result)) {
@@ -90,8 +95,6 @@ async alarm() {
         if (!inMsg) continue;
         if (!inMsg.value || Number(inMsg.value) === 0) continue;
 
-        // ✅ FIX 1: inMsg.message أولاً (نص جاهز من TonCenter)
-        //           ثم msg_data.text مع إزالة null prefix
         let txComment = "";
         if (typeof inMsg.message === "string" && inMsg.message.length > 0) {
           txComment = inMsg.message;
@@ -100,9 +103,9 @@ async alarm() {
           if (msgData?.["@type"] === "msg.dataText" && msgData.text) {
             try {
               const raw = atob(msgData.text);
-              // إزالة البادئة 0x00000000 (TON text op code)
               txComment = raw.replace(/^\x00+/, "");
-            } catch {
+            } catch (e) {
+              await this.state.storage.put("lastError", `comment_decode_error: ${String(e?.message || e)}`);
               txComment = "";
             }
           }
@@ -117,8 +120,11 @@ async alarm() {
           "SELECT 1 FROM deposits WHERE tx_hash=?"
         ).bind(txHash).first();
 
-        // ✅ FIX 3: continue بدل return — تكمل على المعاملات التالية
-        if (existing) continue;
+        if (existing) {
+          await this.state.storage.put("status", "already_processed");
+          await this.state.storage.put("amount", Number(inMsg.value) / 1e9);
+          return;
+        }
 
         const amount = Number(inMsg.value) / 1e9;
 
@@ -139,10 +145,15 @@ async alarm() {
           ]);
         } catch (e) {
           const errMsg = String(e?.message || e).toLowerCase();
+          await this.state.storage.put("lastError", errMsg);
+
           if (errMsg.includes("unique")) {
-            continue; // race condition — معالجة في دورة أخرى
+            await this.state.storage.put("status", "already_processed");
+            await this.state.storage.put("amount", amount);
+            return;
           }
-          continue; // خطأ D1 — سيحاول مجدداً في الـ alarm التالي
+
+          continue;
         }
 
         await this.state.storage.put("status", "found");
@@ -150,9 +161,11 @@ async alarm() {
         await this.notifyUser(userId, amount);
         return;
       }
+    } else {
+      await this.state.storage.put("lastError", "toncenter_invalid_response");
     }
-  } catch {
-    // TonCenter غير متاح — يحاول في الدورة التالية
+  } catch (e) {
+    await this.state.storage.put("lastError", String(e?.message || e || "unknown_error"));
   }
 
   if (attempts < MAX_ATTEMPTS) {
