@@ -90,10 +90,24 @@ export class DepositChecker {
       if (tonData?.ok && Array.isArray(tonData.result)) {
         for (const tx of tonData.result) {
           const inMsg = tx.in_msg;
-          if (!inMsg || !inMsg.source || inMsg.source === "") continue;
-          if (!inMsg.value || Number(inMsg.value) === 0) continue;
-          if ((inMsg.message || "").trim() !== comment) continue;
+if (!inMsg) continue;
+if (!inMsg.value || Number(inMsg.value) === 0) continue;
 
+let txComment = "";
+const msgData = inMsg.msg_data;
+
+if (msgData && msgData["@type"] === "msg.dataText" && msgData.text) {
+  try {
+    txComment = atob(msgData.text);
+  } catch {
+    txComment = "";
+  }
+} else if (typeof inMsg.message === "string") {
+  txComment = inMsg.message;
+}
+
+if (txComment.trim() !== String(comment).trim()) continue;
+          
           const txHash = tx.transaction_id?.hash;
           if (!txHash) continue;
 
