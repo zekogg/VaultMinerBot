@@ -57,120 +57,110 @@ export class DepositChecker {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
 
-  // Alarm — يُطلق كل 15 ثانية من Cloudflare تلقائياً
-  async alarm() {
-    const userId    = await this.state.storage.get("userId");
-    const comment   = await this.state.storage.get("comment");
-    const startTime = await this.state.storage.get("startTime");
-    let   attempts  = (await this.state.storage.get("attempts")) || 0;
+async alarm() {
+  const userId    = await this.state.storage.get("userId");
+  const comment   = await this.state.storage.get("comment");
+  const startTime = await this.state.storage.get("startTime");
+  let   attempts  = (await this.state.storage.get("attempts")) || 0;
 
-    const MAX_ATTEMPTS = 8; // 8 × 15s = 120s (دقيقتان بالضبط)
+  const MAX_ATTEMPTS = 8;
+  attempts++;
+  await this.state.storage.put("attempts", attempts);
 
-    attempts++;
-    await this.state.storage.put("attempts", attempts);
-
-    // تحقق من انتهاء الوقت (دقيقتان)
-    if (Date.now() - startTime > 120_000) {
-      await this.state.storage.put("status", "timeout");
-      return;
-    }
-
-    // فحص TonCenter — آخر 7 معاملات فقط
-    const depositAddress = this.env.DEPOSIT_ADDRESS || "";
-    const headers = { "Accept": "application/json" };
-    if (this.env.TONCENTER_API_KEY) headers["X-API-Key"] = this.env.TONCENTER_API_KEY;
-
-    try {
-      const tonRes = await fetch(
-        `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(depositAddress)}&limit=7&archival=false`,
-        { headers }
-      );
-      const tonData = await tonRes.json();
-
-      if (tonData?.ok && Array.isArray(tonData.result)) {
-        for (const tx of tonData.result) {
-          const inMsg = tx.in_msg;
-if (!inMsg) continue;
-if (!inMsg.value || Number(inMsg.value) === 0) continue;
-
-let txComment = "";
-const msgData = inMsg.msg_data;
-
-if (msgData && msgData["@type"] === "msg.dataText" && msgData.text) {
-  try {
-    txComment = atob(msgData.text);
-  } catch {
-    txComment = "";
-  }
-} else if (typeof inMsg.message === "string") {
-  txComment = inMsg.message;
-}
-
-if (txComment.trim() !== String(comment).trim()) continue;
-          
-          const txHash = tx.transaction_id?.hash;
-          if (!txHash) continue;
-
-          // هل تمت معالجة هذه المعاملة سابقاً؟
-          const existing = await this.env.DB.prepare(
-            "SELECT 1 FROM deposits WHERE tx_hash=?"
-          ).bind(txHash).first();
-
-          if (existing) {
-            await this.state.storage.put("status", "already_processed");
-            return;
-          }
-
-          const amount = Number(inMsg.value) / 1e9;
-
-          // تحقق من الحد الأدنى: 0.1 TON
-          if (amount < 0.1) {
-            await this.state.storage.put("status", "below_minimum");
-            await this.state.storage.put("amount", amount);
-            return;
-          }
-
-          // أضف الإيداع للقاعدة مرة واحدة فقط
-          try {
-  await this.env.DB.batch([
-    this.env.DB.prepare(
-      "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
-    ).bind(amount, userId),
-    this.env.DB.prepare(
-      "INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)"
-    ).bind(userId, txHash, amount, Date.now()),
-  ]);
-} catch (e) {
-  const errMsg = String(e?.message || e).toLowerCase();
-  if (errMsg.includes("unique")) {
-    // tx_hash موجود مسبقاً — الإيداع سُجِّل في دورة سابقة
-    await this.state.storage.put("status", "already_processed");
+  if (Date.now() - startTime > 120_000) {
+    await this.state.storage.put("status", "timeout");
     return;
   }
-  // خطأ آخر في D1 — تخطَّ هذه المعاملة ولا تضبط already_processed
-  // الـ Alarm سيحاول مجدداً في الدورة التالية تلقائياً
-  continue;
-}
 
-          await this.state.storage.put("status", "found");
+  const depositAddress = this.env.DEPOSIT_ADDRESS || "";
+  const headers = { "Accept": "application/json" };
+  if (this.env.TONCENTER_API_KEY) headers["X-API-Key"] = this.env.TONCENTER_API_KEY;
+
+  try {
+    // ✅ FIX 2: limit رُفع من 7 إلى 20
+    const tonRes = await fetch(
+      `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(depositAddress)}&limit=20&archival=false`,
+      { headers }
+    );
+    const tonData = await tonRes.json();
+
+    if (tonData?.ok && Array.isArray(tonData.result)) {
+      for (const tx of tonData.result) {
+        const inMsg = tx.in_msg;
+        if (!inMsg) continue;
+        if (!inMsg.value || Number(inMsg.value) === 0) continue;
+
+        // ✅ FIX 1: inMsg.message أولاً (نص جاهز من TonCenter)
+        //           ثم msg_data.text مع إزالة null prefix
+        let txComment = "";
+        if (typeof inMsg.message === "string" && inMsg.message.length > 0) {
+          txComment = inMsg.message;
+        } else {
+          const msgData = inMsg.msg_data;
+          if (msgData?.["@type"] === "msg.dataText" && msgData.text) {
+            try {
+              const raw = atob(msgData.text);
+              // إزالة البادئة 0x00000000 (TON text op code)
+              txComment = raw.replace(/^\x00+/, "");
+            } catch {
+              txComment = "";
+            }
+          }
+        }
+
+        if (txComment.trim() !== String(comment).trim()) continue;
+
+        const txHash = tx.transaction_id?.hash;
+        if (!txHash) continue;
+
+        const existing = await this.env.DB.prepare(
+          "SELECT 1 FROM deposits WHERE tx_hash=?"
+        ).bind(txHash).first();
+
+        // ✅ FIX 3: continue بدل return — تكمل على المعاملات التالية
+        if (existing) continue;
+
+        const amount = Number(inMsg.value) / 1e9;
+
+        if (amount < 0.1) {
+          await this.state.storage.put("status", "below_minimum");
           await this.state.storage.put("amount", amount);
-
-          // إشعار المستخدم داخل رسائل البوت
-          await this.notifyUser(userId, amount);
           return;
         }
-      }
-    } catch {
-      // TonCenter غير متاح مؤقتاً — حاول مجدداً في الدورة التالية
-    }
 
-    // جدوِل الفحص التالي إذا بقيت محاولات
-    if (attempts < MAX_ATTEMPTS) {
-      await this.state.storage.setAlarm(Date.now() + 15_000);
-    } else {
-      await this.state.storage.put("status", "timeout");
+        try {
+          await this.env.DB.batch([
+            this.env.DB.prepare(
+              "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
+            ).bind(amount, userId),
+            this.env.DB.prepare(
+              "INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)"
+            ).bind(userId, txHash, amount, Date.now()),
+          ]);
+        } catch (e) {
+          const errMsg = String(e?.message || e).toLowerCase();
+          if (errMsg.includes("unique")) {
+            continue; // race condition — معالجة في دورة أخرى
+          }
+          continue; // خطأ D1 — سيحاول مجدداً في الـ alarm التالي
+        }
+
+        await this.state.storage.put("status", "found");
+        await this.state.storage.put("amount", amount);
+        await this.notifyUser(userId, amount);
+        return;
+      }
     }
+  } catch {
+    // TonCenter غير متاح — يحاول في الدورة التالية
   }
+
+  if (attempts < MAX_ATTEMPTS) {
+    await this.state.storage.setAlarm(Date.now() + 15_000);
+  } else {
+    await this.state.storage.put("status", "timeout");
+  }
+}
 
   async notifyUser(userId, amount) {
     if (!this.env.BOT_TOKEN) return;
