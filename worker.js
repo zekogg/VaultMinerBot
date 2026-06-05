@@ -83,7 +83,6 @@ async alarm() {
     );
 
     if (!tonRes.ok) {
-      await this.state.storage.put("lastError", `TonCenter HTTP ${tonRes.status}`);
       throw new Error(`TonCenter HTTP ${tonRes.status}`);
     }
 
@@ -105,7 +104,6 @@ async alarm() {
               const raw = atob(msgData.text);
               txComment = raw.replace(/^\x00+/, "");
             } catch (e) {
-              await this.state.storage.put("lastError", `comment_decode_error: ${String(e?.message || e)}`);
               txComment = "";
             }
           }
@@ -135,15 +133,13 @@ async alarm() {
         }
 
         try {
-          const commentText = String(comment);  // comment موجود مسبقاً من this.state.storage.get("comment")
-
 await this.env.DB.batch([
   this.env.DB.prepare(
     "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
   ).bind(amount, userId),
   this.env.DB.prepare(
     "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?, ?, ?, 'confirmed', ?, ?)"
-  ).bind(userId, txHash, amount, Date.now(), commentText),
+  ).bind(userId, txHash, amount, Date.now(), comment),
 ]);
         } catch (e) {
           const errMsg = String(e?.message || e).toLowerCase();
@@ -163,11 +159,9 @@ await this.env.DB.batch([
         await this.notifyUser(userId, amount);
         return;
       }
-    } else {
-      await this.state.storage.put("lastError", "toncenter_invalid_response");
+    } else {  
     }
   } catch (e) {
-    await this.state.storage.put("lastError", String(e?.message || e || "unknown_error"));
   }
 
   if (attempts < MAX_ATTEMPTS) {
@@ -263,7 +257,8 @@ async function ensureSchema(env) {
       tx_hash TEXT NOT NULL UNIQUE,
       amount REAL NOT NULL,
       status TEXT NOT NULL DEFAULT 'confirmed',
-      created_at INTEGER NOT NULL
+   created_at INTEGER NOT NULL,
+   memo TEXT
     )`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS withdrawals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -278,8 +273,6 @@ async function ensureSchema(env) {
   ]);
 
   try { await env.DB.prepare("ALTER TABLE users ADD COLUMN deposit_amount REAL NOT NULL DEFAULT 0").run(); } catch {}
-  try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN tx_hash TEXT").run(); } catch {}
-  try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN amount REAL DEFAULT 0").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN memo TEXT").run(); } catch {}
   try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_hash ON deposits(tx_hash)").run(); } catch {}
 
