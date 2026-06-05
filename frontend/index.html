@@ -443,7 +443,7 @@
     <h2>Deposit</h2>
     <div class="card">
       <div class="label">Deposit amount:</div>
-      <input class="input" id="depInput" type="number" step="0.0001" value="1.0000" min="0">
+      <input class="input" id="depInput" type="number" step="0.0001" value="1" min="0.1">
       <div class="label">The mining speed will increase by:</div>
       <div class="field">+ <b><span id="depGain">0.1000</span></b> TON per day</div>
       <button class="btn btn-blue" id="btnDeposit" style="margin-top:16px">Deposit</button>
@@ -481,11 +481,11 @@
     <h2>Withdrawal of funds</h2>
     <div class="card">
       <div class="label">Amount:</div>
-      <input class="input" id="wAmount" type="number" step="0.0001" value="0.0024" min="0">
+      <input class="input" id="wAmount" type="number" step="0.0001" value="0.0" min="0">
       <div class="label">Address (TON):</div>
       <input class="input" id="wAddr" placeholder="UQ...">
       <div class="label">Tag/comment/memo (optional):</div>
-      <input class="input" id="wMemo" value="Lucky Miner">
+      <input class="input" id="wMemo" value="Vault Miner">
       <div class="label">Amount to be received:</div>
       <div class="field"><b><span id="wNet">0.0000</span></b> TON</div>
       <button class="btn btn-blue" id="btnWithdraw" style="margin-top:16px">Withdraw</button>
@@ -659,7 +659,9 @@
     });
 
     document.getElementById('btnDeposit').addEventListener('click', async () => {
-      const data = await apiGet('/api/deposit');
+  const val = parseFloat(document.getElementById('depInput').value) || 0;
+  if (val < 0.1) return showToast('❌ Minimum deposit is 0.1 TON');
+  const data = await apiGet('/api/deposit');
       document.getElementById('depAddr').textContent = data.address;
       document.getElementById('depMemo').textContent = data.memo;
       document.getElementById('depSend').textContent = document.getElementById('depInput').value;
@@ -742,7 +744,7 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
     } catch {}
   }
 
-  checkInterval = setInterval(pollStatus, 5000);
+  checkInterval = setInterval(pollStatus, 15000);
 });
 
     // ======== Reinvest - Real-time Preview (min 0.1 TON) ========
