@@ -136,14 +136,16 @@ async alarm() {
         }
 
         try {
-          await this.env.DB.batch([
-            this.env.DB.prepare(
-              "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
-            ).bind(amount, userId),
-            this.env.DB.prepare(
-              "INSERT INTO deposits(user_id,tx_hash,amount,status,created_at) VALUES(?,?,?,'confirmed',?)"
-            ).bind(userId, txHash, amount, Date.now()),
-          ]);
+          const commentText = String(comment);  // comment موجود مسبقاً من this.state.storage.get("comment")
+
+await this.env.DB.batch([
+  this.env.DB.prepare(
+    "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
+  ).bind(amount, userId),
+  this.env.DB.prepare(
+    "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?, ?, ?, 'confirmed', ?, ?)"
+  ).bind(userId, txHash, amount, Date.now(), commentText),
+]);
         } catch (e) {
           const errMsg = String(e?.message || e).toLowerCase();
           await this.state.storage.put("lastError", errMsg);
@@ -279,6 +281,7 @@ async function ensureSchema(env) {
   try { await env.DB.prepare("ALTER TABLE users ADD COLUMN deposit_amount REAL NOT NULL DEFAULT 0").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN tx_hash TEXT").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN amount REAL DEFAULT 0").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN memo TEXT").run(); } catch {}
   try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_hash ON deposits(tx_hash)").run(); } catch {}
 
   const { results } = await env.DB.prepare("SELECT COUNT(*) AS c FROM tasks").all();
