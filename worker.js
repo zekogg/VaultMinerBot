@@ -49,10 +49,11 @@ export class DepositChecker {
 
     // /status → إرجاع الحالة الحالية
     if (url.pathname === "/status" && request.method === "GET") {
-      const status = await this.state.storage.get("status") ?? "idle";
-      const amount = await this.state.storage.get("amount")  ?? null;
-      return Response.json({ status, amount });
-    }
+  const status = await this.state.storage.get("status") ?? "idle";
+  const amount = await this.state.storage.get("amount")  ?? null;
+  const lastError = await this.state.storage.get("lastError") ?? null;
+  return Response.json({ status, amount, lastError });
+}
 
     return Response.json({ error: "not_found" }, { status: 404 });
   }
@@ -538,6 +539,17 @@ export default {
         return json({ ok: true });
       }
 
+// debug endpoint (admin only)
+if (url.pathname === "/api/debug/do-status" && request.method === "GET") {
+  const tgUser = await auth(request, env);
+  if (!tgUser || tgUser.id !== 1018495986) return json({ error: "unauthorized" }, 401);
+  const doId = env.DEPOSIT_CHECKER.idFromName(`user_${tgUser.id}`);
+  const doStub = env.DEPOSIT_CHECKER.get(doId);
+  const res = await doStub.fetch("http://do/status");
+  const data = await res.json();
+  return json(data);
+}
+      
       if (url.pathname.startsWith("/api/")) return json({ error: "not_found" }, 404);
       return env.ASSETS.fetch(request);
     } catch (e) {
