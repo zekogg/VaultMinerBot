@@ -481,7 +481,7 @@
     <h2>Withdrawal of funds</h2>
     <div class="card">
       <div class="label">Amount:</div>
-      <input class="input" id="wAmount" type="number" step="0.0001" value="0.0" min="0">
+      <input class="input" id="wAmount" type="number" step="0.0001" value="0.2" min="0.2">
       <div class="label">Address (TON):</div>
       <input class="input" id="wAddr" placeholder="UQ...">
       <div class="label">Tag/comment/memo (optional):</div>
@@ -489,7 +489,7 @@
       <div class="label">Amount to be received:</div>
       <div class="field"><b><span id="wNet">0.0000</span></b> TON</div>
       <button class="btn btn-blue" id="btnWithdraw" style="margin-top:16px">Withdraw</button>
-      <div class="muted small" style="margin-top:10px">Network fee: <b><span id="wFee">1</span> TON</b></div>
+      <div class="muted small" style="margin-top:10px">Fee (10% + 0.1 TON): <b><span id="wFee">-</span> TON</b></div>
       <div class="muted small">Withdrawal time: <b>~5 minutes</b></div>
     </div>
 
@@ -598,7 +598,6 @@
       document.getElementById('balance').textContent = USER.balance.toFixed(4);
       document.getElementById('acc').textContent = USER.mined.toFixed(8);
       document.getElementById('depAmount').textContent = depositAmt.toFixed(2);
-      document.getElementById('wFee').textContent = CONFIG.fee;
       document.getElementById('profit24').textContent = daily.toFixed(4);
 
       // Update wNet based on current input
@@ -625,12 +624,13 @@
     }
 
     document.querySelectorAll('.nav button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    switchTab(btn.dataset.tab);
-    if (btn.dataset.tab === 'friends') loadFriends();
-    if (btn.dataset.tab === 'deposit') loadDepositHistory();
-  });
-});
+      btn.addEventListener('click', () => {
+        switchTab(btn.dataset.tab);
+        if (btn.dataset.tab === 'friends')  loadFriends();
+        if (btn.dataset.tab === 'deposit')  loadDepositHistory();
+        if (btn.dataset.tab === 'withdraw') loadWithdrawHistory();
+      });
+    });
 
     document.getElementById('btnIncreaseSpeed').addEventListener('click', () => switchTab('deposit'));
     document.getElementById('btnWithdrawIncome').addEventListener('click', () => switchTab('withdraw'));
@@ -779,18 +779,31 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
 
     // ======== Withdraw - Real-time Net Preview ========
     document.getElementById('wAmount').addEventListener('input', function () {
-      const amt = parseFloat(this.value) || 0;
-      document.getElementById('wNet').textContent = Math.max(0, amt - (CONFIG.fee || 1)).toFixed(4);
+      const amt      = parseFloat(this.value) || 0;
+      const totalFee = (amt * 0.10) + 0.1;
+      document.getElementById('wNet').textContent = Math.max(0, amt - totalFee).toFixed(4);
+      document.getElementById('wFee').textContent = totalFee.toFixed(4);
     });
 
     document.getElementById('btnWithdraw').addEventListener('click', async () => {
-      const amount = parseFloat(document.getElementById('wAmount').value);
+      const amount  = parseFloat(document.getElementById('wAmount').value);
       const address = document.getElementById('wAddr').value.trim();
+      const memo    = document.getElementById('wMemo').value.trim();
       if (!address) return showToast('❌ Enter wallet address');
-      if (!amount || amount <= 0) return showToast('❌ Enter amount');
-      const data = await apiPost('/api/withdraw', { amount, address });
-      if (data.ok) showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' TON');
-      else showToast('❌ ' + data.error);
+      if (!amount || amount < 0.2) return showToast('❌ Minimum withdrawal is 0.2 TON');
+      if (amount > (USER.balance || 0)) return showToast('❌ Insufficient balance');
+      const data = await apiPost('/api/withdraw', { amount, address, memo });
+      if (data.ok) {
+        showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' TON');
+        await loadWithdrawHistory();
+      } else {
+        const errMap = {
+          'insufficient_balance': 'Insufficient balance',
+          'invalid_input':        'Invalid input or amount below minimum',
+          'amount_too_small':     'Amount too small after fees',
+        };
+        showToast('❌ ' + (errMap[data.error] || data.error));
+      }
     });
 
 // ======== Load Deposit History ========
@@ -827,6 +840,42 @@ async function loadDepositHistory() {
     document.getElementById('depTotal').textContent = (USER.deposit_amount || 0).toFixed(2);
   } catch {}
 }
+
+// ======== Load Withdraw History ========
+    async function loadWithdrawHistory() {
+      try {
+        const data = await apiGet('/api/withdraw/history');
+        const container = document.getElementById('wHistory');
+        if (!data.withdrawals || data.withdrawals.length === 0) {
+          container.className = 'empty';
+          container.innerHTML = 'No payments';
+          document.getElementById('wTotal').textContent = '0.00';
+          return;
+        }
+        let total = 0;
+        container.className = '';
+        container.innerHTML = data.withdrawals.map(w => {
+          total += parseFloat(w.net) || 0;
+          const date = new Date(w.created_at).toLocaleString('en-US', {
+            month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+          });
+          const statusColor = w.status === 'approved' ? 'var(--green)' : w.status === 'rejected' ? '#e05555' : 'var(--muted)';
+          const statusIcon  = w.status === 'approved' ? '✅' : w.status === 'rejected' ? '❌' : '⏳';
+          return `
+            <div class="card" style="margin-bottom:10px">
+              <div class="row between" style="align-items:center">
+                <div>
+                  <div style="font-size:16px"><b>${parseFloat(w.net).toFixed(4)} TON</b></div>
+                  <div class="muted small">${date}</div>
+                </div>
+                <div style="color:${statusColor}">${statusIcon} ${w.status}</div>
+              </div>
+            </div>`;
+        }).join('');
+        document.getElementById('wTotal').textContent = total.toFixed(2);
+      } catch {}
+    }
     
     // ======== Friends ========
     document.getElementById('btnInvite').addEventListener('click', () => {
