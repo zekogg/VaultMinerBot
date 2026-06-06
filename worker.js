@@ -273,9 +273,18 @@ async function ensureSchema(env) {
   ]);
 
   try { await env.DB.prepare("ALTER TABLE users ADD COLUMN deposit_amount REAL NOT NULL DEFAULT 0").run(); } catch {}
-  try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN memo TEXT").run(); } catch {}
-  try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_hash ON deposits(tx_hash)").run(); } catch {}
-
+try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN memo TEXT").run(); } catch {}
+try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_hash ON deposits(tx_hash)").run(); } catch {}
+try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN memo TEXT").run(); } catch {}
+try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN message_id INTEGER").run(); } catch {}
+try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN chat_id TEXT").run(); } catch {}
+await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pending_rejections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  withdrawal_id INTEGER NOT NULL,
+  prompt_message_id INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+)`).run();
+  
   const { results } = await env.DB.prepare("SELECT COUNT(*) AS c FROM tasks").all();
   if (results[0].c === 0) {
     await env.DB.batch([
@@ -467,6 +476,16 @@ export default {
         return json({ deposits: results });
       }
 
+// withdraw history
+      if (url.pathname === "/api/withdraw/history" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { results } = await env.DB.prepare(
+          "SELECT id, amount, fee, net, address, status, created_at FROM withdrawals WHERE user_id=? ORDER BY created_at DESC LIMIT 5"
+        ).bind(tgUser.id).all();
+        return json({ withdrawals: results });
+      }
+      
       // reinvest
       if (url.pathname === "/api/reinvest" && request.method === "POST") {
         const tgUser = await auth(request, env);
@@ -488,33 +507,72 @@ export default {
       if (url.pathname === "/api/withdraw" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const { amount, address } = await request.json();
+        const { amount, address, memo } = await request.json();
         const amt = Number(amount);
-        if (!amt || amt <= 0 || !address) return json({ error: "invalid_input" }, 400);
+        if (!amt || amt < 0.2 || !address) return json({ error: "invalid_input" }, 400);
+        const fee10    = amt * 0.10;
+        const feeFixed = 0.1;
+        const totalFee = fee10 + feeFixed;
+        const net      = amt - totalFee;
+        if (net <= 0) return json({ error: "amount_too_small" }, 400);
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+        if (!user) return json({ error: "user_not_found" }, 404);
         if (user.balance < amt) return json({ error: "insufficient_balance" }, 400);
-        if (amt <= FEE) return json({ error: "amount_too_small" }, 400);
-        const net = amt - FEE;
-        await env.DB.batch([
-          env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(amt, tgUser.id),
-          env.DB.prepare("INSERT INTO withdrawals(user_id,amount,fee,net,address,status,created_at) VALUES(?,?,?,?,?,'pending',?)").bind(tgUser.id, amt, FEE, net, address, Date.now()),
-        ]);
-        await notifyChannel(env,
-          `🔴 <b>Withdrawal Request</b>\n` +
-          `User: <code>${tgUser.id}</code> (@${tgUser.username || "-"})\n` +
-          `Name: ${tgUser.first_name || "-"}\n` +
-          `Amount: <b>${amt}</b>\n` +
-          `Fee: ${FEE}\n` +
-          `Net to send: <b>${net}</b>\n` +
-          `Address: <code>${address}</code>`
-        );
+        const memoText = (memo && memo.trim()) ? memo.trim() : "Vault Miner";
+        let displayName;
+        if (tgUser.username)        displayName = `@${tgUser.username}`;
+        else if (tgUser.first_name) displayName = tgUser.first_name;
+        else                        displayName = `ID: ${tgUser.id}`;
+        await env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(amt, tgUser.id).run();
+        const insertRes = await env.DB.prepare(
+          "INSERT INTO withdrawals(user_id,amount,fee,net,address,memo,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)"
+        ).bind(tgUser.id, amt, totalFee, net, address, memoText, Date.now()).run();
+        const withdrawalId = insertRes.meta.last_row_id;
+        const notifText =
+          `🔴 <b>Withdrawal Request</b>\n\n` +
+          `👤 ${displayName}\n` +
+          `🆔 <code>${tgUser.id}</code>\n` +
+          `💰 Amount: <b>${amt} TON</b>\n` +
+          `📊 Fee: <b>${totalFee.toFixed(4)} TON</b>\n` +
+          `💵 Net to send: <b>${net.toFixed(4)} TON</b>\n` +
+          `📍 Address: <code>${address}</code>\n` +
+          `📝 Memo: ${memoText}\n\n` +
+          `👉 @VaultMiningBot ~ Earn 10% Daily Ton`;
+        if (env.BOT_TOKEN && env.ADMIN_CHANNEL_ID) {
+          try {
+            const msgRes = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: env.ADMIN_CHANNEL_ID,
+                text: notifText,
+                parse_mode: "HTML",
+                disable_web_page_preview: true,
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: "✅ Approve", callback_data: `approve_${withdrawalId}` },
+                    { text: "❌ Reject",  callback_data: `reject_${withdrawalId}`  },
+                  ]],
+                },
+              }),
+            });
+            const msgData = await msgRes.json();
+            if (msgData.ok) {
+              await env.DB.prepare("UPDATE withdrawals SET message_id=?, chat_id=? WHERE id=?")
+                .bind(msgData.result.message_id, String(env.ADMIN_CHANNEL_ID), withdrawalId).run();
+            }
+          } catch {}
+        }
         return json({ ok: true, net });
       }
 
       // webhook
       if (url.pathname === "/api/webhook" && request.method === "POST") {
-        const update = await request.json().catch(() => ({}));
-        const msg = update.message;
+        const update  = await request.json().catch(() => ({}));
+        const adminId = Number(env.ADMIN_ID || 0);
+        const msg     = update.message;
+
+        // ── /start ──
         if (msg && msg.text?.startsWith("/start")) {
           await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
             method: "POST",
@@ -530,7 +588,210 @@ export default {
               }
             })
           });
+          return json({ ok: true });
         }
+
+        // ── callback_query (Approve / Reject) ──
+        if (update.callback_query) {
+          const cbq = update.callback_query;
+
+          if (cbq.from.id !== adminId) {
+            await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cbq.id, text: "⛔ Not authorized" }),
+            });
+            return json({ ok: true });
+          }
+
+          const cbData = cbq.data || "";
+
+          // ── Approve ──
+          if (cbData.startsWith("approve_")) {
+            const withdrawalId = Number(cbData.replace("approve_", ""));
+            const withdrawal   = await env.DB.prepare("SELECT * FROM withdrawals WHERE id=?").bind(withdrawalId).first();
+
+            if (!withdrawal || withdrawal.status !== "pending") {
+              await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ callback_query_id: cbq.id, text: "⚠️ Already processed" }),
+              });
+              return json({ ok: true });
+            }
+
+            await env.DB.prepare("UPDATE withdrawals SET status='approved' WHERE id=?").bind(withdrawalId).run();
+
+            const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(withdrawal.user_id).first();
+            let displayName;
+            if (user?.username)        displayName = `@${user.username}`;
+            else if (user?.first_name) displayName = user.first_name;
+            else                       displayName = `ID: ${withdrawal.user_id}`;
+
+            if (withdrawal.message_id && withdrawal.chat_id) {
+              await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/editMessageText`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id:    withdrawal.chat_id,
+                  message_id: withdrawal.message_id,
+                  text:
+                    `✅ <b>Withdrawal Approved</b>\n\n` +
+                    `👤 ${displayName}\n` +
+                    `🆔 <code>${withdrawal.user_id}</code>\n` +
+                    `💰 Amount: <b>${withdrawal.amount} TON</b>\n` +
+                    `📊 Fee: <b>${Number(withdrawal.fee).toFixed(4)} TON</b>\n` +
+                    `💵 Net sent: <b>${Number(withdrawal.net).toFixed(4)} TON</b>\n` +
+                    `📍 Address: <code>${withdrawal.address}</code>\n` +
+                    `📝 Memo: ${withdrawal.memo || "Vault Miner"}\n` +
+                    `✅ Status: Approved\n\n` +
+                    `👉 @VaultMiningBot ~ Earn 10% Daily Ton`,
+                  parse_mode: "HTML",
+                  disable_web_page_preview: true,
+                }),
+              });
+            }
+
+            await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id:    withdrawal.user_id,
+                text:
+                  `✅ <b>Withdrawal Approved!</b>\n\n` +
+                  `💵 Amount received: <b>${Number(withdrawal.net).toFixed(4)} TON</b>\n` +
+                  `📍 Sent to: <code>${withdrawal.address}</code>`,
+                parse_mode: "HTML",
+              }),
+            });
+
+            await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cbq.id, text: "✅ Approved" }),
+            });
+          }
+
+          // ── Reject → ask admin for reason ──
+          if (cbData.startsWith("reject_")) {
+            const withdrawalId = Number(cbData.replace("reject_", ""));
+            const withdrawal   = await env.DB.prepare("SELECT * FROM withdrawals WHERE id=?").bind(withdrawalId).first();
+
+            if (!withdrawal || withdrawal.status !== "pending") {
+              await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ callback_query_id: cbq.id, text: "⚠️ Already processed" }),
+              });
+              return json({ ok: true });
+            }
+
+            const promptRes = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id:      adminId,
+                text:         `✏️ Write the rejection reason for withdrawal #${withdrawalId}:`,
+                reply_markup: { force_reply: true, selective: true },
+              }),
+            });
+            const promptData = await promptRes.json();
+
+            if (promptData.ok) {
+              await env.DB.prepare(
+                "INSERT INTO pending_rejections(withdrawal_id, prompt_message_id, created_at) VALUES(?,?,?)"
+              ).bind(withdrawalId, promptData.result.message_id, Date.now()).run();
+            }
+
+            await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cbq.id, text: "✏️ Send the reason in private chat" }),
+            });
+          }
+
+          return json({ ok: true });
+        }
+
+        // ── Admin reply → rejection reason ──
+        if (
+          msg &&
+          msg.reply_to_message &&
+          msg.from?.id === adminId &&
+          msg.chat?.type === "private"
+        ) {
+          const replyToMsgId = msg.reply_to_message.message_id;
+          const pending = await env.DB.prepare(
+            "SELECT * FROM pending_rejections WHERE prompt_message_id=?"
+          ).bind(replyToMsgId).first();
+
+          if (pending) {
+            const withdrawalId = pending.withdrawal_id;
+            const reason       = msg.text || "No reason provided";
+            const withdrawal   = await env.DB.prepare("SELECT * FROM withdrawals WHERE id=?").bind(withdrawalId).first();
+
+            if (withdrawal && withdrawal.status === "pending") {
+              await env.DB.batch([
+                env.DB.prepare("UPDATE withdrawals SET status='rejected' WHERE id=?").bind(withdrawalId),
+                env.DB.prepare("UPDATE users SET balance=balance+? WHERE id=?").bind(withdrawal.amount, withdrawal.user_id),
+                env.DB.prepare("DELETE FROM pending_rejections WHERE id=?").bind(pending.id),
+              ]);
+
+              const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(withdrawal.user_id).first();
+              let displayName;
+              if (user?.username)        displayName = `@${user.username}`;
+              else if (user?.first_name) displayName = user.first_name;
+              else                       displayName = `ID: ${withdrawal.user_id}`;
+
+              if (withdrawal.message_id && withdrawal.chat_id) {
+                await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/editMessageText`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id:    withdrawal.chat_id,
+                    message_id: withdrawal.message_id,
+                    text:
+                      `❌ <b>Withdrawal Rejected</b>\n\n` +
+                      `👤 ${displayName}\n` +
+                      `🆔 <code>${withdrawal.user_id}</code>\n` +
+                      `💰 Amount: <b>${withdrawal.amount} TON</b>\n` +
+                      `📊 Fee: <b>${Number(withdrawal.fee).toFixed(4)} TON</b>\n` +
+                      `💵 Net: <b>${Number(withdrawal.net).toFixed(4)} TON</b>\n` +
+                      `📍 Address: <code>${withdrawal.address}</code>\n` +
+                      `📝 Memo: ${withdrawal.memo || "Vault Miner"}\n` +
+                      `❌ Reason: ${reason}\n\n` +
+                      `👉 @VaultMiningBot ~ Earn 10% Daily Ton`,
+                    parse_mode: "HTML",
+                    disable_web_page_preview: true,
+                  }),
+                });
+              }
+
+              await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id:    withdrawal.user_id,
+                  text:
+                    `❌ <b>Withdrawal Rejected</b>\n\n` +
+                    `💰 Amount: <b>${withdrawal.amount} TON</b>\n\n` +
+                    `💡 Your balance has been refunded.`,
+                  parse_mode: "HTML",
+                }),
+              });
+
+              await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: adminId,
+                  text:    `✅ Rejection processed for withdrawal #${withdrawalId}`,
+                }),
+              });
+            }
+          }
+        }
+
         return json({ ok: true });
       }
 
