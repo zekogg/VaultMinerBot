@@ -327,6 +327,41 @@
 
     a { color: rgb(122, 184, 255); }
 
+.task-btn {
+      background: rgb(28,28,34);
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 14px;
+      transition: opacity 0.15s;
+    }
+    .task-btn:disabled { opacity: 0.45; cursor: default; }
+    .task-btn.green { background: var(--green); }
+    .task-done-overlay { color: var(--green); font-size: 14px; opacity: 0.75; }
+
+    .small-modal {
+      position: fixed; inset: 0; z-index: 300;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .small-modal-overlay {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.78);
+    }
+    .small-modal-box {
+      position: relative; z-index: 1;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px 20px;
+      width: min(300px, 85vw);
+      animation: profIn 0.2s ease;
+    }
+    .small-modal-box h3 { margin: 0 0 10px; font-size: 16px; }
+    .small-modal-box p  { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    
 /* ── Profile Circle ── */
     .profile-circle {
       width: 40px;
@@ -449,7 +484,7 @@
     <div id="topList"></div>
   </section>
 
-  <!-- Tasks -->
+<!-- Tasks -->
   <section id="page-tasks" class="page hidden">
     <h2>Promo code</h2>
     <div class="card">
@@ -460,35 +495,17 @@
     </div>
 
     <h2>Daily tasks</h2>
-    <div class="task">
-      <div class="head">
-        <div class="icon" style="background:#143a2a">✅</div>
-        <div>
-          <div><b>Just check in</b></div>
-          <div class="muted small">Claim your check-in reward</div>
-        </div>
-      </div>
-      <div class="reward">
-        <div>0.0001 <span class="ton-coin"></span></div>
-        <button id="btnCheckin" class="ghost">Check in</button>
-      </div>
-    </div>
+    <div id="dailyTasksList"></div>
 
-    <div class="task">
-      <div class="head">
-        <div class="icon">👥</div>
-        <div>
-          <div><b>Share with friends</b></div>
-          <div class="muted small">Invite your friends and earn together</div>
-        </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <h2 style="margin:0">Partner Tasks</h2>
+        <button id="btnPartnerInfo" style="width:22px;height:22px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0">?</button>
       </div>
-      <div class="reward">
-        <div>0.0001 <span class="ton-coin"></span></div>
-        <button class="ghost">Open</button>
-      </div>
+      <button id="btnAddTask" class="ghost" style="font-size:13px;padding:7px 12px">+ Add A Task</button>
     </div>
+    <div id="partnerTasksList"></div>
   </section>
-
   <!-- Friends -->
   <section id="page-friends" class="page hidden">
     <h2>Friends <span class="badge" id="refCount">0</span></h2>
@@ -617,6 +634,35 @@
       </div>
       <div class="prof-close-wrap">
         <button class="btn btn-dark" id="profClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+<!-- Partner Info Modal -->
+  <div id="partnerInfoModal" class="small-modal hidden">
+    <div class="small-modal-overlay" id="partnerInfoOverlay"></div>
+    <div class="small-modal-box">
+      <h3>🤝 Partner Tasks</h3>
+      <p>If You Have A Channel or A Project And You Want to Publish Your Task Here Contact The Support</p>
+      <button class="btn btn-dark" style="margin-top:16px;width:100%" onclick="document.getElementById('partnerInfoModal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+
+  <!-- Add Task Modal -->
+  <div id="addTaskModal" class="small-modal hidden">
+    <div class="small-modal-overlay" id="addTaskOverlay"></div>
+    <div class="small-modal-box" style="width:min(340px,90vw)">
+      <h3>➕ Add A Partner Task</h3>
+      <div class="label" style="margin-top:6px">Title</div>
+      <input id="atTitle" class="input" placeholder="Task title" maxlength="80">
+      <div class="label">Link</div>
+      <input id="atLink" class="input" placeholder="https://...">
+      <div class="label">Clicks <span class="muted small">(min 250 = 0.5 TON)</span></div>
+      <input id="atClicks" class="input" type="number" min="250" step="50" value="500">
+      <div class="label">Cost: <b id="atCost">1.0000</b> TON from your balance</div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn btn-dark" style="flex:1" onclick="document.getElementById('addTaskModal').classList.add('hidden')">Cancel</button>
+        <button class="btn btn-blue" style="flex:1" id="btnSubmitTask">Publish</button>
       </div>
     </div>
   </div>
@@ -818,6 +864,7 @@
         if (btn.dataset.tab === 'friends')  loadFriends();
         if (btn.dataset.tab === 'deposit')  loadDepositHistory();
         if (btn.dataset.tab === 'withdraw') loadWithdrawHistory();
+        if (btn.dataset.tab === 'tasks') { loadDailyTasks(); loadPartnerTasks(); }
       });
     });
 
@@ -995,6 +1042,228 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
       }
     });
 
+// ======== Promo Code ========
+    document.getElementById('btnPromo').addEventListener('click', async () => {
+      const code = document.getElementById('promo').value.trim();
+      if (!code) return showToast('❌ Enter a promo code');
+      const data = await apiPost('/api/promo/apply', { code });
+      if (data.ok) {
+        USER.balance = data.balance;
+        document.getElementById('balance').textContent = data.balance.toFixed(4);
+        document.getElementById('promo').value = '';
+        showToast('✅ Promo applied! +' + data.reward.toFixed(4) + ' TON');
+      } else {
+        const errMap = {
+          'invalid_code':   'Invalid or expired code',
+          'already_used':   'You already used this code',
+          'code_exhausted': 'This code has been fully used',
+        };
+        showToast('❌ ' + (errMap[data.error] || data.error));
+      }
+    });
+
+    // ======== Daily Tasks ========
+    const _dailyTaskData = {};
+
+    function renderDailyTask(t) {
+      _dailyTaskData[t.id] = t;
+      const el = document.createElement('div');
+      el.className = 'task';
+      el.id = `dtask-${t.id}`;
+
+      let actionHTML;
+      if (t.done) {
+        actionHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+      } else if (t.type === 'deposit') {
+        actionHTML = t.deposit_ok
+          ? `<button class="task-btn green" onclick="claimDailyTask(${t.id})">Claim</button>`
+          : `<button class="task-btn" onclick="switchTab('deposit')">Deposit</button>`;
+      } else {
+        actionHTML = `<button class="task-btn" onclick="dailyTaskOpen(${t.id})">Open</button>`;
+      }
+
+      el.innerHTML = `
+        <div class="head">
+          <div class="icon">${t.icon}</div>
+          <div>
+            <div><b>${t.title}</b></div>
+            <div class="muted small">+${t.reward.toFixed(3)} TON reward</div>
+          </div>
+        </div>
+        <div class="reward">
+          <div style="display:flex;align-items:center;gap:6px">${t.reward.toFixed(3)} <span class="ton-coin"></span></div>
+          <div id="dt-action-${t.id}">${actionHTML}</div>
+        </div>`;
+      return el;
+    }
+
+    async function loadDailyTasks() {
+      const data = await apiGet('/api/daily-tasks');
+      if (!data.tasks) return;
+      const list = document.getElementById('dailyTasksList');
+      list.innerHTML = '';
+      data.tasks.forEach(t => list.appendChild(renderDailyTask(t)));
+    }
+
+    function dailyTaskOpen(taskId) {
+      const t = _dailyTaskData[taskId];
+      if (!t) return;
+      const actionDiv = document.getElementById(`dt-action-${taskId}`);
+
+      if (t.type === 'checkin') {
+        if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">Claim</button>`;
+        return;
+      }
+      if (t.type === 'link' && t.url) {
+        tg?.openTelegramLink(t.url);
+      } else if (t.type === 'share') {
+        const link = refLink || `https://t.me/${CONFIG.bot_username || 'VaultMinerBot'}?start=${USER.id}`;
+        tg?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('⛏️ Join Vault Miner and earn TON!')}`);
+      }
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="dailyTaskCheck(${taskId})">Check</button>`;
+    }
+
+    function dailyTaskCheck(taskId) {
+      const actionDiv = document.getElementById(`dt-action-${taskId}`);
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">Claim</button>`;
+    }
+
+    async function claimDailyTask(taskId) {
+      const actionDiv = document.getElementById(`dt-action-${taskId}`);
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" disabled>...</button>`;
+      const data = await apiPost('/api/daily-tasks/complete', { task_id: taskId });
+      if (data.ok) {
+        USER.balance = data.balance;
+        document.getElementById('balance').textContent = data.balance.toFixed(4);
+        if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+        showToast('✅ +' + data.reward.toFixed(3) + ' TON');
+      } else {
+        const errMap = {
+          'already_done_today': 'Already done today',
+          'deposit_required':   'Deposit 0.1 TON first',
+        };
+        showToast('❌ ' + (errMap[data.error] || data.error));
+        if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">Claim</button>`;
+      }
+    }
+
+    // ======== Partner Tasks ========
+    const _partnerTaskData = {};
+
+    async function loadPartnerTasks() {
+      const data = await apiGet('/api/partner-tasks');
+      const list = document.getElementById('partnerTasksList');
+      if (!data.tasks || data.tasks.length === 0) {
+        list.innerHTML = '<div class="empty">No partner tasks yet</div>';
+        return;
+      }
+      list.innerHTML = '';
+      data.tasks.forEach(t => {
+        _partnerTaskData[t.id] = t;
+        const el = document.createElement('div');
+        el.className = 'task';
+        let actionHTML;
+        if (t.done) {
+          actionHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+        } else if (t.remaining <= 0) {
+          actionHTML = `<span class="muted small">Full</span>`;
+        } else {
+          actionHTML = `<button class="task-btn" onclick="partnerTaskOpen(${t.id})">Open</button>`;
+        }
+        el.innerHTML = `
+          <div class="head">
+            <div class="icon">🔗</div>
+            <div>
+              <div><b>${t.title}</b></div>
+              <div class="muted small">${t.remaining} clicks remaining</div>
+            </div>
+          </div>
+          <div class="reward">
+            <div style="display:flex;align-items:center;gap:6px">0.001 <span class="ton-coin"></span></div>
+            <div id="pt-action-${t.id}">${actionHTML}</div>
+          </div>`;
+        list.appendChild(el);
+      });
+    }
+
+    function partnerTaskOpen(taskId) {
+      const t = _partnerTaskData[taskId];
+      if (!t) return;
+      if (t.url.includes('t.me/')) tg?.openTelegramLink(t.url);
+      else tg?.openLink(t.url);
+      const actionDiv = document.getElementById(`pt-action-${taskId}`);
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="partnerTaskCheck(${taskId})">Check</button>`;
+    }
+
+    function partnerTaskCheck(taskId) {
+      const actionDiv = document.getElementById(`pt-action-${taskId}`);
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimPartnerTask(${taskId})">Claim</button>`;
+    }
+
+    async function claimPartnerTask(taskId) {
+      const actionDiv = document.getElementById(`pt-action-${taskId}`);
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" disabled>...</button>`;
+      const data = await apiPost('/api/partner-tasks/complete', { task_id: taskId });
+      if (data.ok) {
+        USER.balance = data.balance;
+        document.getElementById('balance').textContent = data.balance.toFixed(4);
+        if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+        showToast('✅ +0.001 TON');
+      } else {
+        const errMap = {
+          'already_done': 'Already completed',
+          'task_full':    'Task is full',
+          'own_task':     'Cannot complete your own task',
+        };
+        showToast('❌ ' + (errMap[data.error] || data.error));
+        if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimPartnerTask(${taskId})">Claim</button>`;
+      }
+    }
+
+    // ── Partner Modals & Add Task ──
+    document.getElementById('btnPartnerInfo').addEventListener('click', () =>
+      document.getElementById('partnerInfoModal').classList.remove('hidden'));
+    document.getElementById('partnerInfoOverlay').addEventListener('click', () =>
+      document.getElementById('partnerInfoModal').classList.add('hidden'));
+    document.getElementById('btnAddTask').addEventListener('click', () =>
+      document.getElementById('addTaskModal').classList.remove('hidden'));
+    document.getElementById('addTaskOverlay').addEventListener('click', () =>
+      document.getElementById('addTaskModal').classList.add('hidden'));
+
+    document.getElementById('atClicks').addEventListener('input', function () {
+      document.getElementById('atCost').textContent = ((parseFloat(this.value) || 0) / 500).toFixed(4);
+    });
+
+    document.getElementById('btnSubmitTask').addEventListener('click', async () => {
+      const title  = document.getElementById('atTitle').value.trim();
+      const url    = document.getElementById('atLink').value.trim();
+      const clicks = parseInt(document.getElementById('atClicks').value) || 0;
+      if (!title || !url) return showToast('❌ Fill in all fields');
+      if (clicks < 250) return showToast('❌ Minimum 250 clicks');
+      const cost = clicks / 500;
+      if (cost > (USER.balance || 0)) return showToast('❌ Insufficient balance');
+      const data = await apiPost('/api/partner-tasks/add', { title, url, clicks });
+      if (data.ok) {
+        document.getElementById('addTaskModal').classList.add('hidden');
+        USER.balance = data.balance;
+        document.getElementById('balance').textContent = data.balance.toFixed(4);
+        document.getElementById('atTitle').value  = '';
+        document.getElementById('atLink').value   = '';
+        document.getElementById('atClicks').value = '500';
+        document.getElementById('atCost').textContent = '1.0000';
+        showToast('✅ Task published!');
+        loadPartnerTasks();
+      } else {
+        const errMap = {
+          'insufficient_balance': 'Insufficient balance',
+          'min_clicks_250':       'Minimum 250 clicks',
+          'invalid_url':          'Invalid URL',
+          'invalid_input':        'Invalid input',
+        };
+        showToast('❌ ' + (errMap[data.error] || data.error));
+      }
+    });
+    
 // ======== Load Deposit History ========
 async function loadDepositHistory() {
   try {
