@@ -326,16 +326,104 @@
     }
 
     a { color: rgb(122, 184, 255); }
+
+/* ── Profile Circle ── */
+    .profile-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 2px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      overflow: hidden;
+      flex-shrink: 0;
+      font-size: 20px;
+      transition: border-color 0.2s;
+    }
+    .profile-circle:hover  { border-color: var(--blue); }
+    .profile-circle:active { opacity: 0.75; }
+    .profile-circle img {
+      width: 100%; height: 100%;
+      object-fit: cover; border-radius: 50%;
+      display: none;
+    }
+
+    /* ── Profile Modal ── */
+    .prof-modal {
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .prof-overlay {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.78);
+    }
+    @keyframes profIn {
+      from { opacity: 0; transform: scale(0.88); }
+      to   { opacity: 1; transform: scale(1);    }
+    }
+    .prof-sheet {
+      position: relative;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      width: min(320px, 88vw);
+      z-index: 1;
+      overflow: hidden;
+      animation: profIn 0.2s ease;
+    }
+    .prof-top {
+      text-align: center;
+      padding: 22px 20px 0;
+    }
+    .prof-avatar-wrap {
+      width: 76px; height: 76px;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 2px solid var(--line);
+      margin: 0 auto;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 38px; overflow: hidden;
+    }
+    .prof-avatar-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover; border-radius: 50%;
+      display: none;
+    }
+    .prof-name {
+      font-size: 18px; font-weight: 700;
+      margin-top: 10px; line-height: 1.2;
+    }
+    .prof-uname {
+      font-size: 13px; color: var(--muted);
+      margin-top: 3px;
+    }
+    .prof-sep { height: 1px; background: var(--line); margin: 14px 0 0; }
+    .prof-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 11px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .prof-row:last-child { border-bottom: none; }
+    .prof-lbl { color: var(--muted); font-size: 13px; }
+    .prof-val { font-size: 13px; font-weight: 600; }
+    .prof-close-wrap { padding: 10px 16px 16px; }
+    
   </style>
 </head>
 <body>
   <div id="toast" class="toast hidden"></div>
 
-  <div class="topbar">
+<div class="topbar">
     <div class="pill"><span id="balance">0.0000</span><span class="ton-coin"></span></div>
+    <div id="profileCircle" class="profile-circle">
+      <img id="profileCircleImg" src="" alt="">
+      <span id="profileCircleEmoji">👤</span>
+    </div>
     <div class="lang">🇬🇧 English ▾</div>
   </div>
-
   <!-- Mining -->
   <section id="page-mining" class="page">
     <div class="card">
@@ -490,6 +578,49 @@
     <div id="wHistory" class="empty">No payments</div>
   </section>
 
+<!-- ══ Profile Modal ══ -->
+  <div id="profileModal" class="prof-modal hidden">
+    <div class="prof-overlay" id="profOverlay"></div>
+    <div class="prof-sheet">
+      <div class="prof-top">
+        <div class="prof-avatar-wrap">
+          <img id="profAvatarImg" src="" alt="">
+          <span id="profAvatarEmoji">👤</span>
+        </div>
+        <div class="prof-name" id="profName"></div>
+        <div class="prof-uname" id="profUname"></div>
+      </div>
+      <div class="prof-sep"></div>
+      <div class="prof-row">
+        <span class="prof-lbl">🆔 ID</span>
+        <span class="prof-val" id="profId"></span>
+      </div>
+      <div class="prof-row">
+        <span class="prof-lbl">📅 Registered</span>
+        <span class="prof-val" id="profReg"></span>
+      </div>
+      <div class="prof-row">
+        <span class="prof-lbl">💰 Deposit</span>
+        <span class="prof-val" id="profDeposit"></span>
+      </div>
+      <div class="prof-row">
+        <span class="prof-lbl">⚡ Mining Speed</span>
+        <span class="prof-val" id="profSpeed"></span>
+      </div>
+      <div class="prof-row">
+        <span class="prof-lbl">💎 Balance</span>
+        <span class="prof-val" id="profBalance"></span>
+      </div>
+      <div class="prof-row">
+        <span class="prof-lbl">📤 Total Withdrawn</span>
+        <span class="prof-val" id="profWithdrawn"></span>
+      </div>
+      <div class="prof-close-wrap">
+        <button class="btn btn-dark" id="profClose">Close</button>
+      </div>
+    </div>
+  </div>
+  
   <nav class="nav">
     <button data-tab="mining" class="active">
       <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"></path></svg>Mining
@@ -556,6 +687,70 @@
     let refLink = '';
     let checkInterval = null;
 
+// ======== Profile Circle & Modal ========
+    function setupProfilePhoto() {
+      const photoUrl = tg?.initDataUnsafe?.user?.photo_url;
+      const img   = document.getElementById('profileCircleImg');
+      const emoji = document.getElementById('profileCircleEmoji');
+      if (photoUrl) {
+        img.src = photoUrl;
+        img.onload  = () => { img.style.display = 'block'; emoji.style.display = 'none'; };
+        img.onerror = () => { img.style.display = 'none';  emoji.style.display = 'flex'; };
+      }
+    }
+
+    function openProfileModal() {
+      const photoUrl = tg?.initDataUnsafe?.user?.photo_url;
+      const img   = document.getElementById('profAvatarImg');
+      const emoji = document.getElementById('profAvatarEmoji');
+
+      // Photo
+      if (photoUrl) {
+        img.src = photoUrl;
+        img.onload  = () => { img.style.display = 'block'; emoji.style.display = 'none'; };
+        img.onerror = () => { img.style.display = 'none';  emoji.style.display = 'flex'; };
+      } else {
+        img.style.display = 'none';
+        emoji.style.display = 'flex';
+      }
+
+      // Name
+      const tgU = tg?.initDataUnsafe?.user || {};
+      const fullName = [tgU.first_name, tgU.last_name].filter(Boolean).join(' ');
+      document.getElementById('profName').textContent  = fullName || USER.first_name || 'User';
+      document.getElementById('profUname').textContent = USER.username ? '@' + USER.username : '';
+
+      // ID
+      document.getElementById('profId').textContent = USER.id || '';
+
+      // Registered date
+      if (USER.created_at) {
+        const d = new Date(USER.created_at);
+        const pad = n => String(n).padStart(2, '0');
+        document.getElementById('profReg').textContent =
+          `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      } else {
+        document.getElementById('profReg').textContent = '—';
+      }
+
+      // Stats
+      const dep = USER.deposit_amount || 0;
+      document.getElementById('profDeposit').textContent   = dep.toFixed(4) + ' TON';
+      document.getElementById('profSpeed').textContent     = (dep * 0.10).toFixed(4) + ' TON/day';
+      document.getElementById('profBalance').textContent   = (USER.balance || 0).toFixed(4) + ' TON';
+      document.getElementById('profWithdrawn').textContent = (USER.total_withdrawn || 0).toFixed(4) + ' TON';
+
+      document.getElementById('profileModal').classList.remove('hidden');
+    }
+
+    document.getElementById('profileCircle').addEventListener('click', openProfileModal);
+    document.getElementById('profClose').addEventListener('click', () => {
+      document.getElementById('profileModal').classList.add('hidden');
+    });
+    document.getElementById('profOverlay').addEventListener('click', () => {
+      document.getElementById('profileModal').classList.add('hidden');
+    });
+    
     async function apiPost(path, body = {}) {
       const res = await fetch(API + path, {
         method: 'POST',
@@ -584,6 +779,7 @@
 
       USER = data.user;
       CONFIG = data.config;
+      setupProfilePhoto();
 
       const depositAmt = USER.deposit_amount || 0;
       const daily = depositAmt * 0.10;
@@ -702,7 +898,7 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
     return;
   }
 
-  // استعلم عن الحالة كل 5 ثوانٍ
+  // استعلم عن الحالة كل 15 ثوانٍ
   async function pollStatus() {
     try {
       const data = await apiGet('/api/deposit/status');
