@@ -360,18 +360,24 @@ export default {
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         const user = await getOrCreateUser(env, tgUser, body.ref);
         const mined = computeMined(user);
-        return json({
-          user: {
-            id: user.id,
-            username: user.username,
-            first_name: user.first_name,
-            balance: user.balance,
-            mined,
-            last_claim: user.last_claim,
-            deposit_amount: user.deposit_amount || 0,
-          },
-          config: { fee: FEE, bot_username: env.BOT_USERNAME || "" },
-        });
+        const wRow = await env.DB.prepare(
+        "SELECT COALESCE(SUM(net), 0) AS total FROM withdrawals WHERE user_id=? AND status='approved'"
+      ).bind(tgUser.id).first();
+
+      return json({
+        user: {
+          id: user.id,
+          username: user.username,
+          first_name: user.first_name,
+          balance: user.balance,
+          mined,
+          last_claim: user.last_claim,
+          deposit_amount: user.deposit_amount || 0,
+          created_at: user.created_at,
+          total_withdrawn: wRow?.total || 0,
+        },
+        config: { fee: FEE, bot_username: env.BOT_USERNAME || "" },
+      });
       }
 
       // claim
