@@ -284,6 +284,49 @@ await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pending_rejections (
   prompt_message_id INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 )`).run();
+
+await env.DB.prepare(`CREATE TABLE IF NOT EXISTS daily_tasks_done (
+    user_id INTEGER NOT NULL,
+    task_id INTEGER NOT NULL,
+    done_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, task_id)
+  )`).run();
+
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    clicks_target INTEGER NOT NULL,
+    clicks_done INTEGER NOT NULL DEFAULT 0,
+    cost REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL
+  )`).run();
+
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_tasks_done (
+    user_id INTEGER NOT NULL,
+    task_id INTEGER NOT NULL,
+    done_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, task_id)
+  )`).run();
+
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS promo_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    reward REAL NOT NULL,
+    max_uses INTEGER NOT NULL DEFAULT 1,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL DEFAULT 0
+  )`).run();
+
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS promo_uses (
+    user_id INTEGER NOT NULL,
+    code_id INTEGER NOT NULL,
+    used_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, code_id)
+  )`).run();
   
   const { results } = await env.DB.prepare("SELECT COUNT(*) AS c FROM tasks").all();
   if (results[0].c === 0) {
@@ -308,6 +351,11 @@ async function getOrCreateUser(env, tgUser, referrerId) {
     await env.DB.prepare("UPDATE users SET balance=balance+1 WHERE id=?").bind(ref).run();
   }
   return await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+}
+
+function getTodayUTCStart() {
+  const now = new Date();
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 }
 
 function computeMined(user) {
@@ -572,6 +620,202 @@ export default {
         return json({ ok: true, net });
       }
 
+// ── GET /api/daily-tasks ──
+      if (url.pathname === "/api/daily-tasks" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+        if (!user) return json({ error: "user_not_found" }, 404);
+
+        const todayStart = getTodayUTCStart();
+        const { results: doneRows } = await env.DB.prepare(
+          "SELECT task_id, done_at FROM daily_tasks_done WHERE user_id=?"
+        ).bind(tgUser.id).all();
+
+        const doneMap = {};
+        for (const r of doneRows) doneMap[r.task_id] = r.done_at;
+
+        const DAILY_TASKS = [
+          { id: 1, title: "Just check in",      icon: "✅", reward: 0.001, type: "checkin", url: null },
+          { id: 2, title: "Share with friends", icon: "👥", reward: 0.001, type: "share",   url: null },
+          { id: 3, title: "Check For Updates",  icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
+          { id: 4, title: "Deposit 0.1+ TON",   icon: "💎", reward: 0.01,  type: "deposit", url: null },
+        ];
+
+        return json({
+          tasks: DAILY_TASKS.map(t => ({
+            ...t,
+            done: (doneMap[t.id] || 0) >= todayStart,
+            deposit_ok: t.type === "deposit" ? (user.deposit_amount || 0) >= 0.1 : null,
+          }))
+        });
+      }
+
+      // ── POST /api/daily-tasks/complete ──
+      if (url.pathname === "/api/daily-tasks/complete" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { task_id } = await request.json();
+        const tid = Number(task_id);
+        if (![1, 2, 3, 4].includes(tid)) return json({ error: "invalid_task" }, 400);
+
+        const todayStart = getTodayUTCStart();
+        const existing = await env.DB.prepare(
+          "SELECT done_at FROM daily_tasks_done WHERE user_id=? AND task_id=?"
+        ).bind(tgUser.id, tid).first();
+
+        if (existing && existing.done_at >= todayStart) {
+          return json({ error: "already_done_today" }, 400);
+        }
+
+        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+        if (!user) return json({ error: "user_not_found" }, 404);
+
+        const reward = tid === 4 ? 0.01 : 0.001;
+
+        if (tid === 4 && (user.deposit_amount || 0) < 0.1) {
+          return json({ error: "deposit_required" }, 400);
+        }
+
+        await env.DB.batch([
+          env.DB.prepare(
+            "INSERT OR REPLACE INTO daily_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
+          ).bind(tgUser.id, tid, Date.now()),
+          env.DB.prepare(
+            "UPDATE users SET balance=balance+? WHERE id=?"
+          ).bind(reward, tgUser.id),
+        ]);
+
+        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, reward, balance: updated.balance });
+      }
+
+      // ── GET /api/partner-tasks ──
+      if (url.pathname === "/api/partner-tasks" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+
+        const { results: tasks } = await env.DB.prepare(
+          "SELECT * FROM partner_tasks WHERE status='active' ORDER BY created_at DESC"
+        ).all();
+
+        const { results: doneRows } = await env.DB.prepare(
+          "SELECT task_id FROM partner_tasks_done WHERE user_id=?"
+        ).bind(tgUser.id).all();
+
+        const doneSet = new Set(doneRows.map(r => r.task_id));
+
+        return json({
+          tasks: tasks.map(t => ({
+            ...t,
+            done: doneSet.has(t.id),
+            remaining: t.clicks_target - t.clicks_done,
+          }))
+        });
+      }
+
+      // ── POST /api/partner-tasks/complete ──
+      if (url.pathname === "/api/partner-tasks/complete" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { task_id } = await request.json();
+        const tid = Number(task_id);
+
+        const task = await env.DB.prepare(
+          "SELECT * FROM partner_tasks WHERE id=? AND status='active'"
+        ).bind(tid).first();
+
+        if (!task) return json({ error: "task_not_found" }, 404);
+        if (task.clicks_done >= task.clicks_target) return json({ error: "task_full" }, 400);
+        if (task.owner_id === tgUser.id) return json({ error: "own_task" }, 400);
+
+        const existing = await env.DB.prepare(
+          "SELECT 1 FROM partner_tasks_done WHERE user_id=? AND task_id=?"
+        ).bind(tgUser.id, tid).first();
+        if (existing) return json({ error: "already_done" }, 400);
+
+        const newClicks = task.clicks_done + 1;
+        const newStatus = newClicks >= task.clicks_target ? "completed" : "active";
+
+        await env.DB.batch([
+          env.DB.prepare(
+            "INSERT INTO partner_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
+          ).bind(tgUser.id, tid, Date.now()),
+          env.DB.prepare(
+            "UPDATE partner_tasks SET clicks_done=?, status=? WHERE id=?"
+          ).bind(newClicks, newStatus, tid),
+          env.DB.prepare(
+            "UPDATE users SET balance=balance+0.001 WHERE id=?"
+          ).bind(tgUser.id),
+        ]);
+
+        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, reward: 0.001, balance: updated.balance });
+      }
+
+      // ── POST /api/partner-tasks/add ──
+      if (url.pathname === "/api/partner-tasks/add" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { title, url: taskUrl, clicks } = await request.json();
+
+        if (!title || !taskUrl || !clicks) return json({ error: "invalid_input" }, 400);
+        try { new URL(taskUrl); } catch { return json({ error: "invalid_url" }, 400); }
+
+        const clk = Number(clicks);
+        if (clk < 250) return json({ error: "min_clicks_250" }, 400);
+
+        const cost = clk / 500;
+        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+        if (!user) return json({ error: "user_not_found" }, 404);
+        if ((user.balance || 0) < cost) return json({ error: "insufficient_balance" }, 400);
+
+        await env.DB.batch([
+          env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(cost, tgUser.id),
+          env.DB.prepare(
+            "INSERT INTO partner_tasks(owner_id, title, url, clicks_target, cost, created_at) VALUES(?,?,?,?,?,?)"
+          ).bind(tgUser.id, title.slice(0, 80), taskUrl.slice(0, 200), clk, cost, Date.now()),
+        ]);
+
+        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, cost, balance: updated.balance });
+      }
+
+      // ── POST /api/promo/apply ──
+      if (url.pathname === "/api/promo/apply" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { code } = await request.json();
+        if (!code || !code.trim()) return json({ error: "invalid_code" }, 400);
+
+        const promo = await env.DB.prepare(
+          "SELECT * FROM promo_codes WHERE code=? AND active=1"
+        ).bind(code.trim().toUpperCase()).first();
+
+        if (!promo) return json({ error: "invalid_code" }, 400);
+        if (promo.used_count >= promo.max_uses) return json({ error: "code_exhausted" }, 400);
+
+        const alreadyUsed = await env.DB.prepare(
+          "SELECT 1 FROM promo_uses WHERE user_id=? AND code_id=?"
+        ).bind(tgUser.id, promo.id).first();
+        if (alreadyUsed) return json({ error: "already_used" }, 400);
+
+        await env.DB.batch([
+          env.DB.prepare(
+            "INSERT INTO promo_uses(user_id, code_id, used_at) VALUES(?,?,?)"
+          ).bind(tgUser.id, promo.id, Date.now()),
+          env.DB.prepare(
+            "UPDATE promo_codes SET used_count=used_count+1 WHERE id=?"
+          ).bind(promo.id),
+          env.DB.prepare(
+            "UPDATE users SET balance=balance+? WHERE id=?"
+          ).bind(promo.reward, tgUser.id),
+        ]);
+
+        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, reward: promo.reward, balance: updated.balance });
+      }
+      
       // webhook
       if (url.pathname === "/api/webhook" && request.method === "POST") {
         const update  = await request.json().catch(() => ({}));
