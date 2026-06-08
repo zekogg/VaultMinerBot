@@ -506,9 +506,12 @@
     </div>
     <div id="partnerTasksList"></div>
   </section>
-  <!-- Friends -->
+<!-- Friends -->
   <section id="page-friends" class="page hidden">
-    <h2>Friends <span class="badge" id="refCount">0</span></h2>
+    <div class="row between" style="margin-bottom:14px;align-items:center">
+      <h2 style="margin:0">Friends <span class="badge" id="refCount">0</span></h2>
+      <button class="ghost" id="btnFriendsList">📋 List</button>
+    </div>
     <div class="card">
       <div class="row" style="align-items:flex-start">
         <div style="font-size:32px">👫</div>
@@ -520,18 +523,52 @@
       </div>
     </div>
 
+    <h2>Friends Rewards</h2>
+    <div class="muted small" style="margin:-8px 0 10px;color:var(--muted)">Earn 10% of every deposit your friends make. Min. 1 TON to claim.</div>
     <div class="card row between">
       <div><span id="refAvail">0.0000</span> <span class="ton-coin"></span></div>
-      <button class="btn btn-green" style="width:auto;padding:10px 18px" id="btnRefClaim">Claim</button>
+      <button id="btnRefClaim" class="btn btn-green" style="width:auto;padding:10px 18px;opacity:0.35;pointer-events:none;transition:opacity 0.2s">Claim</button>
     </div>
 
     <h2>Bonuses for friends</h2>
-    <div class="card">
-      <div>Invite 10 friends</div>
-      <div class="row between" style="margin-top:10px">
+    <div class="card" style="margin-bottom:10px">
+      <div>Invite <b>10</b> friends</div>
+      <div class="row between" style="margin-top:10px;align-items:center">
         <div>0.0050 <span class="ton-coin"></span></div>
-        <div class="muted"><span id="refProg">0</span>/10</div>
-        <button class="btn btn-green" style="width:auto;padding:8px 14px">Claim</button>
+        <div class="muted small"><span id="refProg10">0</span>/10</div>
+        <button id="btnMilestone10" data-milestone="10" class="btn btn-green" style="width:auto;padding:8px 14px;opacity:0.35;pointer-events:none;transition:opacity 0.2s">Claim</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:10px">
+      <div>Invite <b>100</b> friends</div>
+      <div class="row between" style="margin-top:10px;align-items:center">
+        <div>0.025 <span class="ton-coin"></span></div>
+        <div class="muted small"><span id="refProg100">0</span>/100</div>
+        <button id="btnMilestone100" data-milestone="100" class="btn btn-green" style="width:auto;padding:8px 14px;opacity:0.35;pointer-events:none;transition:opacity 0.2s">Claim</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:10px">
+      <div>Invite <b>500</b> friends</div>
+      <div class="row between" style="margin-top:10px;align-items:center">
+        <div>0.1 <span class="ton-coin"></span></div>
+        <div class="muted small"><span id="refProg500">0</span>/500</div>
+        <button id="btnMilestone500" data-milestone="500" class="btn btn-green" style="width:auto;padding:8px 14px;opacity:0.35;pointer-events:none;transition:opacity 0.2s">Claim</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:10px">
+      <div>Invite <b>1,000</b> friends</div>
+      <div class="row between" style="margin-top:10px;align-items:center">
+        <div>0.2 <span class="ton-coin"></span></div>
+        <div class="muted small"><span id="refProg1000">0</span>/1000</div>
+        <button id="btnMilestone1000" data-milestone="1000" class="btn btn-green" style="width:auto;padding:8px 14px;opacity:0.35;pointer-events:none;transition:opacity 0.2s">Claim</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:10px">
+      <div>Invite <b>5,000</b> friends</div>
+      <div class="row between" style="margin-top:10px;align-items:center">
+        <div>1 <span class="ton-coin"></span></div>
+        <div class="muted small"><span id="refProg5000">0</span>/5000</div>
+        <button id="btnMilestone5000" data-milestone="5000" class="btn btn-green" style="width:auto;padding:8px 14px;opacity:0.35;pointer-events:none;transition:opacity 0.2s">Claim</button>
       </div>
     </div>
   </section>
@@ -663,6 +700,21 @@
       <div style="display:flex;gap:10px;margin-top:16px">
         <button class="btn btn-dark" style="flex:1" onclick="document.getElementById('addTaskModal').classList.add('hidden')">Cancel</button>
         <button class="btn btn-blue" style="flex:1" id="btnSubmitTask">Publish</button>
+      </div>
+    </div>
+  </div>
+
+<!-- ══ Friends List Modal ══ -->
+  <div id="friendsListModal" class="prof-modal hidden">
+    <div class="prof-overlay" id="friendsListOverlay"></div>
+    <div class="prof-sheet" style="width:min(360px,92vw);max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
+      <div style="padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">👥 Invited Friends</h3>
+        <span class="muted small" id="friendsListCount"></span>
+      </div>
+      <div id="friendsListContent" style="overflow-y:auto;flex:1;padding:4px 16px"></div>
+      <div style="padding:10px 16px 16px;border-top:1px solid var(--line)">
+        <button class="btn btn-dark" id="friendsListClose">Close</button>
       </div>
     </div>
   </div>
@@ -845,8 +897,125 @@
       const data = await apiGet('/api/friends');
       if (!data.friends) return;
       refLink = data.link || '';
-      document.getElementById('refCount').textContent = data.friends.length;
-      document.getElementById('refProg').textContent = data.friends.length;
+
+      const friendsCount = data.friends_count || 0;
+      document.getElementById('refCount').textContent = friendsCount;
+
+      // مكافآت الإحالة
+      const rewards = data.referral_rewards || 0;
+      document.getElementById('refAvail').textContent = rewards.toFixed(4);
+      const claimBtn = document.getElementById('btnRefClaim');
+      if (rewards >= 1) {
+        claimBtn.style.opacity = '1';
+        claimBtn.style.pointerEvents = 'auto';
+      } else {
+        claimBtn.style.opacity = '0.35';
+        claimBtn.style.pointerEvents = 'none';
+      }
+
+      // الـ milestones
+      const msData = await apiGet('/api/friends/milestones');
+      const claimedSet = new Set((msData.claimed || []).map(Number));
+
+      const MILESTONES = [
+        { count: 10 }, { count: 100 }, { count: 500 },
+        { count: 1000 }, { count: 5000 },
+      ];
+      MILESTONES.forEach(m => {
+        const progEl = document.getElementById('refProg' + m.count);
+        if (progEl) progEl.textContent = Math.min(friendsCount, m.count);
+        const btn = document.getElementById('btnMilestone' + m.count);
+        if (!btn) return;
+        if (claimedSet.has(m.count)) {
+          btn.textContent = '✅ Claimed';
+          btn.style.opacity = '0.5';
+          btn.style.pointerEvents = 'none';
+        } else if (friendsCount >= m.count) {
+          btn.style.opacity = '1';
+          btn.style.pointerEvents = 'auto';
+        } else {
+          btn.style.opacity = '0.35';
+          btn.style.pointerEvents = 'none';
+        }
+      });
+    }
+
+    // ======== Friends Rewards Claim ========
+    document.getElementById('btnRefClaim').addEventListener('click', async () => {
+      const data = await apiPost('/api/friends/claim');
+      if (data.ok) {
+        USER.balance = data.balance;
+        document.getElementById('balance').textContent = data.balance.toFixed(4);
+        document.getElementById('refAvail').textContent = '0.0000';
+        const btn = document.getElementById('btnRefClaim');
+        btn.style.opacity = '0.35';
+        btn.style.pointerEvents = 'none';
+        showToast('✅ Claimed: +' + parseFloat(data.claimed).toFixed(4) + ' TON');
+      } else {
+        const errMap = { 'min_1_ton': 'Minimum 1 TON to claim' };
+        showToast('❌ ' + (errMap[data.error] || data.error));
+      }
+    });
+
+    // ======== Milestone Claims ========
+    document.querySelectorAll('[data-milestone]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const milestone = parseInt(btn.dataset.milestone);
+        const data = await apiPost('/api/friends/milestone', { milestone });
+        if (data.ok) {
+          USER.balance = (USER.balance || 0) + data.reward;
+          document.getElementById('balance').textContent = USER.balance.toFixed(4);
+          btn.textContent = '✅ Claimed';
+          btn.style.opacity = '0.5';
+          btn.style.pointerEvents = 'none';
+          showToast('✅ Bonus claimed: +' + data.reward + ' TON');
+        } else {
+          const errMap = {
+            'already_claimed': 'Already claimed',
+            'not_enough_friends': 'Not enough friends yet',
+          };
+          showToast('❌ ' + (errMap[data.error] || data.error));
+        }
+      });
+    });
+
+    // ======== Friends List Modal ========
+    document.getElementById('btnFriendsList').addEventListener('click', openFriendsList);
+    document.getElementById('friendsListClose').addEventListener('click', () => {
+      document.getElementById('friendsListModal').classList.add('hidden');
+    });
+    document.getElementById('friendsListOverlay').addEventListener('click', () => {
+      document.getElementById('friendsListModal').classList.add('hidden');
+    });
+
+    async function openFriendsList() {
+      document.getElementById('friendsListModal').classList.remove('hidden');
+      const content = document.getElementById('friendsListContent');
+      content.innerHTML = '<div class="muted small center" style="padding:24px">Loading...</div>';
+      const data = await apiGet('/api/friends');
+      if (!data.friends || data.friends.length === 0) {
+        document.getElementById('friendsListCount').textContent = '0 friends';
+        content.innerHTML = '<div class="muted small center" style="padding:24px">No friends invited yet</div>';
+        return;
+      }
+      document.getElementById('friendsListCount').textContent = data.friends.length + ' friends';
+      content.innerHTML = data.friends.map(f => {
+        const name   = f.username ? '@' + f.username : (f.first_name || 'User ' + f.id);
+        const dep    = parseFloat(f.deposit_amount || 0);
+        const earned = dep * 0.10;
+        const date   = new Date(f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `
+          <div style="padding:12px 0;border-bottom:1px solid var(--line)">
+            <div class="row between">
+              <div style="font-size:14px;font-weight:600">${name}</div>
+              <div class="muted small">${date}</div>
+            </div>
+            <div class="row between" style="margin-top:5px">
+              <div class="muted small">Deposit: <b style="color:#fff">${dep.toFixed(4)} TON</b></div>
+              <div class="muted small">Earned: <b style="color:var(--green)">+${earned.toFixed(4)} TON</b></div>
+            </div>
+          </div>`;
+      }).join('');
     }
 
     // ======== Navigation ========
