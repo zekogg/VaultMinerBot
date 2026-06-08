@@ -490,7 +490,7 @@ export default {
         ).bind(tgUser.id).first();
         return json({
           friends: results,
-          link: `https://t.me/${env.BOT_USERNAME || "your_bot"}?start=${tgUser.id}`,
+          link: `https://t.me/${env.BOT_USERNAME || "your_bot"}/app?startapp=${tgUser.id}`,
           referral_rewards: meRow?.referral_rewards || 0,
           friends_count: meRow?.friends_count || 0,
         });
