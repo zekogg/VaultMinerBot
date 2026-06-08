@@ -347,15 +347,6 @@ await env.DB.prepare(`CREATE TABLE IF NOT EXISTS daily_tasks_done (
     used_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, code_id)
   )`).run();
-  
-  const { results } = await env.DB.prepare("SELECT COUNT(*) AS c FROM tasks").all();
-  if (results[0].c === 0) {
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO tasks(title,url,reward,active) VALUES (?,?,?,1)").bind("Join our Telegram channel", "https://t.me/", 0.5),
-      env.DB.prepare("INSERT INTO tasks(title,url,reward,active) VALUES (?,?,?,1)").bind("Follow on X (Twitter)", "https://twitter.com/", 0.5),
-      env.DB.prepare("INSERT INTO tasks(title,url,reward,active) VALUES (?,?,?,1)").bind("Subscribe on YouTube", "https://youtube.com/", 0.5),
-    ]);
-  }
 }
 
 async function getOrCreateUser(env, tgUser, referrerId) {
