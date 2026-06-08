@@ -154,6 +154,15 @@ await this.env.DB.batch([
           continue;
         }
 
+        // منح المُحيل 10% من قيمة الإيداع
+        try {
+          const userRow = await this.env.DB.prepare("SELECT referrer_id FROM users WHERE id=?").bind(userId).first();
+          if (userRow?.referrer_id) {
+            await this.env.DB.prepare("UPDATE users SET referral_rewards=referral_rewards+? WHERE id=?")
+              .bind(amount * 0.10, userRow.referrer_id).run();
+          }
+        } catch {}
+
         await this.state.storage.put("status", "found");
         await this.state.storage.put("amount", amount);
         await this.notifyUser(userId, amount);
@@ -278,12 +287,23 @@ try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_ha
 try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN memo TEXT").run(); } catch {}
 try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN message_id INTEGER").run(); } catch {}
 try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN chat_id TEXT").run(); } catch {}
+  
 await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pending_rejections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   withdrawal_id INTEGER NOT NULL,
   prompt_message_id INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 )`).run();
+try { await env.DB.prepare("ALTER TABLE users ADD COLUMN referral_rewards REAL NOT NULL DEFAULT 0").run(); } catch {}
+try { await env.DB.prepare("ALTER TABLE users ADD COLUMN friends_count INTEGER NOT NULL DEFAULT 0").run(); } catch {}
+await env.DB.prepare(`CREATE TABLE IF NOT EXISTS milestone_claims (
+  user_id INTEGER NOT NULL,
+  milestone INTEGER NOT NULL,
+  claimed_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, milestone)
+)`).run();
+
+  const { results } = await env.DB.prepare("SELECT COUNT(*) AS c FROM tasks").all();
 
 await env.DB.prepare(`CREATE TABLE IF NOT EXISTS daily_tasks_done (
     user_id INTEGER NOT NULL,
@@ -348,7 +368,7 @@ async function getOrCreateUser(env, tgUser, referrerId) {
     "INSERT INTO users(id,username,first_name,balance,mined,last_claim,deposit_amount,referrer_id,created_at) VALUES(?,?,?,0,0,?,0,?,?)"
   ).bind(tgUser.id, tgUser.username || null, tgUser.first_name || null, now, ref, now).run();
   if (ref) {
-    await env.DB.prepare("UPDATE users SET balance=balance+1 WHERE id=?").bind(ref).run();
+    await env.DB.prepare("UPDATE users SET balance=balance+1, friends_count=friends_count+1 WHERE id=?").bind(ref).run();
   }
   return await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
 }
@@ -472,9 +492,17 @@ export default {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         const { results } = await env.DB.prepare(
-          "SELECT id, username, first_name, created_at FROM users WHERE referrer_id=? ORDER BY created_at DESC LIMIT 100"
+          "SELECT id, username, first_name, created_at, deposit_amount FROM users WHERE referrer_id=? ORDER BY created_at DESC LIMIT 100"
         ).bind(tgUser.id).all();
-        return json({ friends: results, link: `https://t.me/${env.BOT_USERNAME || "your_bot"}?start=${tgUser.id}` });
+        const meRow = await env.DB.prepare(
+          "SELECT referral_rewards, friends_count FROM users WHERE id=?"
+        ).bind(tgUser.id).first();
+        return json({
+          friends: results,
+          link: `https://t.me/${env.BOT_USERNAME || "your_bot"}?start=${tgUser.id}`,
+          referral_rewards: meRow?.referral_rewards || 0,
+          friends_count: meRow?.friends_count || 0,
+        });
       }
 
       // deposit info
@@ -1045,6 +1073,52 @@ export default {
         return json({ ok: true });
       }
 
+// ── friends/claim: سحب مكافآت الإحالة (الحد الأدنى 1 TON) ──
+      if (url.pathname === "/api/friends/claim" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
+        if (!user) return json({ error: "user_not_found" }, 404);
+        const rewards = user.referral_rewards || 0;
+        if (rewards < 1) return json({ error: "min_1_ton" }, 400);
+        await env.DB.prepare("UPDATE users SET balance=balance+?, referral_rewards=0 WHERE id=?")
+          .bind(rewards, tgUser.id).run();
+        return json({ ok: true, claimed: rewards, balance: user.balance + rewards });
+      }
+
+      // ── friends/milestones GET: الـ milestones المطالَب بها ──
+      if (url.pathname === "/api/friends/milestones" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { results } = await env.DB.prepare(
+          "SELECT milestone FROM milestone_claims WHERE user_id=?"
+        ).bind(tgUser.id).all();
+        return json({ claimed: results.map(r => r.milestone) });
+      }
+
+      // ── friends/milestone POST: المطالبة بمكافأة milestone ──
+      if (url.pathname === "/api/friends/milestone" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { milestone } = await request.json();
+        const MILESTONES = { 10: 0.005, 100: 0.025, 500: 0.1, 1000: 0.2, 5000: 1 };
+        const reward = MILESTONES[Number(milestone)];
+        if (!reward) return json({ error: "invalid_milestone" }, 400);
+        const user = await env.DB.prepare("SELECT friends_count FROM users WHERE id=?").bind(tgUser.id).first();
+        if (!user) return json({ error: "user_not_found" }, 404);
+        if ((user.friends_count || 0) < Number(milestone)) return json({ error: "not_enough_friends" }, 400);
+        const already = await env.DB.prepare(
+          "SELECT 1 FROM milestone_claims WHERE user_id=? AND milestone=?"
+        ).bind(tgUser.id, Number(milestone)).first();
+        if (already) return json({ error: "already_claimed" }, 400);
+        await env.DB.batch([
+          env.DB.prepare("INSERT INTO milestone_claims(user_id, milestone, claimed_at) VALUES(?,?,?)")
+            .bind(tgUser.id, Number(milestone), Date.now()),
+          env.DB.prepare("UPDATE users SET balance=balance+? WHERE id=?").bind(reward, tgUser.id),
+        ]);
+        return json({ ok: true, reward });
+      }
+      
       if (url.pathname.startsWith("/api/")) return json({ error: "not_found" }, 404);
       return env.ASSETS.fetch(request);
     } catch (e) {
