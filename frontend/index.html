@@ -1543,16 +1543,19 @@ async function loadDepositHistory() {
         month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit'
       });
-      return `
-        <div class="card" style="margin-bottom:10px">
-          <div class="row between" style="align-items:center">
-            <div>
-              <div style="font-size:16px"><b>+${parseFloat(d.amount).toFixed(4)} TON</b></div>
-              <div class="muted small">${date}</div>
-            </div>
-            <div style="color:var(--green)">✅ confirmed</div>
-          </div>
-        </div>`;
+      const isReinvest  = d.status === 'reinvested';
+const statusText  = isReinvest ? '🔄 Reinvested' : '✅ Confirmed';
+const statusColor = isReinvest ? 'var(--blue)' : 'var(--green)';
+return `
+  <div class="card" style="margin-bottom:10px">
+    <div class="row between" style="align-items:center">
+      <div>
+        <div style="font-size:16px"><b>${isReinvest ? '↺' : '+'}${parseFloat(d.amount).toFixed(4)} TON</b></div>
+        <div class="muted small">${date}</div>
+      </div>
+      <div style="color:${statusColor}">${statusText}</div>
+    </div>
+  </div>`;
     }).join('');
 
     document.getElementById('depTotal').textContent = (USER.deposit_amount || 0).toFixed(2);
@@ -1687,11 +1690,12 @@ function renderLbRow(u, getPrizeFn, valueKey, valueLabel) {
   else if (rank === 2) { badge = '🥈'; rankClass = 'lb-silver'; extra = ' lb-top3'; }
   else if (rank === 3) { badge = '🥉'; rankClass = 'lb-bronze'; extra = ' lb-top3'; }
 
-  const name       = u.username ? `@${u.username}` : (u.first_name || `User ${u.id}`);
-  const valDisplay = valueKey === 'deposit_amount'
-    ? val.toFixed(2) + ' TON'
-    : val + ' ' + valueLabel;
-
+  const displayName = u.first_name || `User ${u.id}`;
+const valDisplay  = valueKey === 'deposit_amount'
+  ? val.toFixed(2) + ' TON'
+  : val + ' ' + valueLabel;
+const subText = u.username ? `@${u.username} · ${valDisplay}` : valDisplay;
+  
   const prizeHTML = prize > 0
     ? `<span class="lb-prize ${rankClass}">${prize}<span class="ton-coin" style="width:15px;height:15px;margin-left:2px"></span></span>`
     : '';
@@ -1701,9 +1705,9 @@ function renderLbRow(u, getPrizeFn, valueKey, valueLabel) {
       <div class="lb-rank ${rankClass}" style="font-size:${rank<=3?'20':'13'}px">${badge}</div>
       ${lbAvatarEl(u)}
       <div class="lb-info">
-        <div class="lb-name">${name}</div>
-        <div class="lb-sub">${valDisplay}</div>
-      </div>
+  <div class="lb-name">${displayName}</div>
+  <div class="lb-sub">${subText}</div>
+</div>
       ${prizeHTML}
     </div>`;
 }
