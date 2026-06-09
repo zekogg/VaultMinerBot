@@ -294,9 +294,12 @@ await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pending_rejections (
   prompt_message_id INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 )`).run();
+  
 try { await env.DB.prepare("ALTER TABLE users ADD COLUMN referral_rewards REAL NOT NULL DEFAULT 0").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE users ADD COLUMN photo_url TEXT").run(); } catch {}
 try { await env.DB.prepare("ALTER TABLE users ADD COLUMN friends_count INTEGER NOT NULL DEFAULT 0").run(); } catch {}
+try { await env.DB.prepare("ALTER TABLE users ADD COLUMN total_reinvested REAL NOT NULL DEFAULT 0").run(); } catch {}  
+  
 await env.DB.prepare(`CREATE TABLE IF NOT EXISTS milestone_claims (
   user_id INTEGER NOT NULL,
   milestone INTEGER NOT NULL,
@@ -574,9 +577,15 @@ export default {
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
         if (!user) return json({ error: "user_not_found" }, 404);
         if (user.balance < amt) return json({ error: "insufficient_balance" }, 400);
-        await env.DB.prepare(
-          "UPDATE users SET balance=balance-?, deposit_amount=deposit_amount+? WHERE id=?"
-        ).bind(amt, amt, tgUser.id).run();
+        const reTxHash = `reinvest_${tgUser.id}_${Date.now()}`;
+await env.DB.batch([
+  env.DB.prepare(
+    "UPDATE users SET balance=balance-?, deposit_amount=deposit_amount+?, total_reinvested=COALESCE(total_reinvested,0)+? WHERE id=?"
+  ).bind(amt, amt, amt, tgUser.id),
+  env.DB.prepare(
+    "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?,?,?,'reinvested',?,?)"
+  ).bind(tgUser.id, reTxHash, amt, Date.now(), 'Reinvest'),
+]);
         const updated = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
         return json({ ok: true, deposit_amount: updated.deposit_amount, balance: updated.balance });
       }
@@ -659,20 +668,25 @@ export default {
         const doneMap = {};
         for (const r of doneRows) doneMap[r.task_id] = r.done_at;
 
-        const DAILY_TASKS = [
-          { id: 1, title: "Just check in",      icon: "✅", reward: 0.001, type: "checkin", url: null },
-          { id: 2, title: "Share with friends", icon: "👥", reward: 0.001, type: "share",   url: null },
-          { id: 3, title: "Check For Updates",  icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
-          { id: 4, title: "Deposit 0.1+ TON",   icon: "💎", reward: 0.01,  type: "deposit", url: null },
-        ];
+        const todayDeposit = await env.DB.prepare(
+  "SELECT 1 FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=?"
+).bind(tgUser.id, todayStart).first();
+const depositOkToday = !!todayDeposit;
 
-        return json({
-          tasks: DAILY_TASKS.map(t => ({
-            ...t,
-            done: (doneMap[t.id] || 0) >= todayStart,
-            deposit_ok: t.type === "deposit" ? (user.deposit_amount || 0) >= 0.1 : null,
-          }))
-        });
+const DAILY_TASKS = [
+  { id: 1, title: "Just check in",            icon: "✅", reward: 0.001, type: "checkin", url: null },
+  { id: 2, title: "Share with friends",       icon: "👥", reward: 0.001, type: "share",   url: null },
+  { id: 3, title: "Check For Updates",        icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
+  { id: 4, title: "Deposit 0.1+ TON Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null },
+];
+
+return json({
+  tasks: DAILY_TASKS.map(t => ({
+    ...t,
+    done: (doneMap[t.id] || 0) >= todayStart,
+    deposit_ok: t.type === "deposit" ? depositOkToday : null,
+  }))
+});
       }
 
       // ── POST /api/daily-tasks/complete ──
@@ -697,9 +711,12 @@ export default {
 
         const reward = tid === 4 ? 0.01 : 0.001;
 
-        if (tid === 4 && (user.deposit_amount || 0) < 0.1) {
-          return json({ error: "deposit_required" }, 400);
-        }
+        if (tid === 4) {
+  const todayDep = await env.DB.prepare(
+    "SELECT 1 FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=?"
+  ).bind(tgUser.id, todayStart).first();
+  if (!todayDep) return json({ error: "deposit_required" }, 400);
+}
 
         await env.DB.batch([
           env.DB.prepare(
@@ -1137,8 +1154,10 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
   ).bind(tgUser.id).first();
 
   const PERIOD_MS  = 480 * 60 * 60 * 1000;
-  const now        = Date.now();
-  const nextReward = (Math.floor(now / PERIOD_MS) + 1) * PERIOD_MS;
+const LB_EPOCH   = 1781049600000; // June 10, 2026 00:00 UTC
+const now        = Date.now();
+const elapsed    = Math.max(0, now - LB_EPOCH);
+const nextReward = LB_EPOCH + (Math.floor(elapsed / PERIOD_MS) + 1) * PERIOD_MS;
 
   return json({
     referrals:          refTop.map((u, i) => ({ ...u, rank: i + 1 })),
