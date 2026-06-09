@@ -445,6 +445,44 @@
     .prof-lbl { color: var(--muted); font-size: 13px; }
     .prof-val { font-size: 13px; font-weight: 600; }
     .prof-close-wrap { padding: 10px 16px 16px; }
+
+/* ── Leaderboard ── */
+.lb-tab {
+  flex: 1; background: transparent; border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted); font-family: inherit; font-size: 14px;
+  padding: 9px 0; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.lb-tab.active { color: #fff; border-bottom-color: var(--blue); }
+
+.lb-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 6px; border-bottom: 1px solid var(--line);
+}
+.lb-row:last-child { border-bottom: none; }
+.lb-row.lb-me { background: rgba(90,141,239,0.10); border-radius: 8px; padding: 10px 8px; }
+.lb-row.lb-top3 { background: var(--panel-2); border-radius: 10px; margin-bottom: 3px; }
+
+.lb-rank  { font-size: 13px; font-weight: 700; width: 32px; text-align: center; flex-shrink: 0; }
+.lb-avatar {
+  position: relative; width: 36px; height: 36px; border-radius: 50%;
+  background: rgb(34,34,42); display: flex; align-items: center;
+  justify-content: center; font-size: 14px; font-weight: 700;
+  flex-shrink: 0; overflow: hidden;
+}
+.lb-avatar img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; border-radius: 50%;
+}
+.lb-info { flex: 1; min-width: 0; }
+.lb-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.lb-prize { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+
+.lb-gold   { color: #f5c842; }
+.lb-silver { color: #bfc5d0; }
+.lb-bronze { color: #c4784e; }
     
   </style>
 </head>
@@ -462,7 +500,11 @@
   <!-- Mining -->
   <section id="page-mining" class="page">
     <div class="card">
-      <div class="acc-title">Accumulated income</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+  <button id="btnLeaderboard" title="Leaderboard"
+    style="background:none;border:none;cursor:pointer;padding:0;line-height:1;font-size:22px;flex-shrink:0">🏆</button>
+  <div class="acc-title" style="margin:0">Accumulated income</div>
+</div>
       <div class="acc-amount"><span id="acc">0.00000000</span> TON</div>
       <div class="divider"></div>
       <div class="stats">
@@ -725,6 +767,38 @@
       </div>
     </div>
   </div>
+
+<!-- ══ Leaderboard Modal ══ -->
+<div id="leaderboardModal" class="prof-modal hidden">
+  <div class="prof-overlay" id="lbOverlay"></div>
+  <div class="prof-sheet" style="width:min(390px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+
+    <!-- Header -->
+    <div style="padding:16px 18px 12px;text-align:center;border-bottom:1px solid var(--line)">
+      <div style="font-size:17px;font-weight:700">🏆 Leaderboard</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">
+        Rewards Credited in
+        <span id="lbTimer" style="color:var(--blue);font-weight:700;font-size:12px;letter-spacing:0.5px">000h 00m 00s</span>
+      </div>
+      <div style="font-size:9px;color:rgb(55,55,65);margin-top:2px">Updates daily · 00:00 UTC</div>
+      <div id="lbMyRank" style="font-size:11px;margin-top:5px;color:var(--muted);min-height:15px"></div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;padding:0 18px;border-bottom:1px solid var(--line)">
+      <button id="lbTabRef" class="lb-tab active">👥 Referrals</button>
+      <button id="lbTabDep" class="lb-tab">💎 Deposits</button>
+    </div>
+
+    <!-- List -->
+    <div id="lbContent" style="overflow-y:auto;flex:1;padding:8px 10px"></div>
+
+    <!-- Close -->
+    <div style="padding:10px 14px 14px;border-top:1px solid var(--line)">
+      <button class="btn btn-dark" id="lbClose">Close</button>
+    </div>
+  </div>
+</div>
   
   <nav class="nav">
     <button data-tab="mining" class="active">
@@ -1541,6 +1615,149 @@ async function loadDepositHistory() {
       document.getElementById('acc').textContent = mined.toFixed(8);
     }, 1000);
 
+// ======== Leaderboard ========
+let _lbData     = null;
+let _lbTab      = 'referrals';
+let _lbTimerIv  = null;
+let _lbRewardTs = 0;
+
+function getRefPrize(rank) {
+  if (rank === 1) return 25;
+  if (rank === 2) return 15;
+  if (rank === 3) return 10;
+  if (rank <= 5)  return 5;
+  if (rank <= 10) return 1.5;
+  if (rank <= 20) return 1;
+  return 0;
+}
+function getDepPrize(rank) {
+  if (rank === 1) return 50;
+  if (rank === 2) return 25;
+  if (rank === 3) return 15;
+  if (rank <= 5)  return 10;
+  if (rank <= 10) return 2;
+  if (rank <= 20) return 1;
+  return 0;
+}
+
+function formatLbTimer(ms) {
+  if (ms <= 0) return '000h 00m 00s';
+  const s   = Math.floor(ms / 1000);
+  const h   = Math.floor(s / 3600);
+  const m   = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${String(h).padStart(3,'0')}h ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`;
+}
+
+function startLbTimer() {
+  if (_lbTimerIv) clearInterval(_lbTimerIv);
+  const el = document.getElementById('lbTimer');
+  el.textContent = formatLbTimer(_lbRewardTs - Date.now());
+  _lbTimerIv = setInterval(() => {
+    el.textContent = formatLbTimer(_lbRewardTs - Date.now());
+  }, 1000);
+}
+
+function lbAvatarEl(u) {
+  const letter  = (u.first_name || 'U')[0].toUpperCase();
+  const imgHtml = u.photo_url
+    ? `<img src="${u.photo_url}" alt="" onerror="this.remove()">`
+    : '';
+  return `<div class="lb-avatar"><span>${letter}</span>${imgHtml}</div>`;
+}
+
+function renderLbRow(u, getPrizeFn, valueKey, valueLabel) {
+  const rank  = u.rank;
+  const isMe  = u.id === USER.id;
+  const prize = getPrizeFn(rank);
+  const val   = parseFloat(u[valueKey] || 0);
+
+  let badge = `#${rank}`, rankClass = '', extra = '';
+  if      (rank === 1) { badge = '🥇'; rankClass = 'lb-gold';   extra = ' lb-top3'; }
+  else if (rank === 2) { badge = '🥈'; rankClass = 'lb-silver'; extra = ' lb-top3'; }
+  else if (rank === 3) { badge = '🥉'; rankClass = 'lb-bronze'; extra = ' lb-top3'; }
+
+  const name       = u.username ? `@${u.username}` : (u.first_name || `User ${u.id}`);
+  const valDisplay = valueKey === 'deposit_amount'
+    ? val.toFixed(2) + ' TON'
+    : val + ' ' + valueLabel;
+
+  const prizeHTML = prize > 0
+    ? `<span class="lb-prize ${rankClass}">${prize}<span class="ton-coin" style="width:15px;height:15px;margin-left:2px"></span></span>`
+    : '';
+
+  return `
+    <div class="lb-row${extra}${isMe ? ' lb-me' : ''}">
+      <div class="lb-rank ${rankClass}" style="font-size:${rank<=3?'20':'13'}px">${badge}</div>
+      ${lbAvatarEl(u)}
+      <div class="lb-info">
+        <div class="lb-name">${name}</div>
+        <div class="lb-sub">${valDisplay}</div>
+      </div>
+      ${prizeHTML}
+    </div>`;
+}
+
+function renderLeaderboard() {
+  if (!_lbData) return;
+  const isRef      = _lbTab === 'referrals';
+  const list       = isRef ? _lbData.referrals    : _lbData.deposits;
+  const myRank     = isRef ? _lbData.my_rank_referrals : _lbData.my_rank_deposits;
+  const getPrizeFn = isRef ? getRefPrize : getDepPrize;
+  const valueKey   = isRef ? 'friends_count' : 'deposit_amount';
+  const valueLabel = isRef ? 'friends' : 'TON';
+
+  const myPrize  = getPrizeFn(myRank);
+  const myRankEl = document.getElementById('lbMyRank');
+  myRankEl.innerHTML = myRank <= 20
+    ? `Your rank: <b style="color:#fff">#${myRank}</b>${myPrize > 0 ? ` &middot; Prize: <b style="color:var(--green)">${myPrize} TON</b>` : ''}`
+    : `Your rank: <b style="color:#fff">#${myRank}</b>`;
+
+  const content = document.getElementById('lbContent');
+  if (!list || list.length === 0) {
+    content.innerHTML = '<div class="muted small center" style="padding:24px">No data yet</div>';
+    return;
+  }
+  content.innerHTML = list.map(u => renderLbRow(u, getPrizeFn, valueKey, valueLabel)).join('');
+}
+
+async function openLeaderboard() {
+  document.getElementById('leaderboardModal').classList.remove('hidden');
+  document.getElementById('lbContent').innerHTML =
+    '<div class="muted small center" style="padding:24px">Loading...</div>';
+  try {
+    _lbData = await apiGet('/api/leaderboard');
+    _lbRewardTs = _lbData.next_reward || (Date.now() + 480 * 3600 * 1000);
+    startLbTimer();
+    renderLeaderboard();
+  } catch {
+    document.getElementById('lbContent').innerHTML =
+      '<div class="muted small center" style="padding:24px">Failed to load</div>';
+  }
+}
+
+function closeLb() {
+  document.getElementById('leaderboardModal').classList.add('hidden');
+  if (_lbTimerIv) { clearInterval(_lbTimerIv); _lbTimerIv = null; }
+}
+
+document.getElementById('btnLeaderboard').addEventListener('click', openLeaderboard);
+document.getElementById('lbClose').addEventListener('click', closeLb);
+document.getElementById('lbOverlay').addEventListener('click', closeLb);
+
+document.getElementById('lbTabRef').addEventListener('click', () => {
+  _lbTab = 'referrals';
+  document.getElementById('lbTabRef').classList.add('active');
+  document.getElementById('lbTabDep').classList.remove('active');
+  renderLeaderboard();
+});
+document.getElementById('lbTabDep').addEventListener('click', () => {
+  _lbTab = 'deposits';
+  document.getElementById('lbTabRef').classList.remove('active');
+  document.getElementById('lbTabDep').classList.add('active');
+  renderLeaderboard();
+});
+    
     // ======== Start ========
     loadUser();
   </script>
