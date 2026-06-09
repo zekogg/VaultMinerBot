@@ -295,6 +295,7 @@ await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pending_rejections (
   created_at INTEGER NOT NULL
 )`).run();
 try { await env.DB.prepare("ALTER TABLE users ADD COLUMN referral_rewards REAL NOT NULL DEFAULT 0").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE users ADD COLUMN photo_url TEXT").run(); } catch {}
 try { await env.DB.prepare("ALTER TABLE users ADD COLUMN friends_count INTEGER NOT NULL DEFAULT 0").run(); } catch {}
 await env.DB.prepare(`CREATE TABLE IF NOT EXISTS milestone_claims (
   user_id INTEGER NOT NULL,
@@ -418,6 +419,10 @@ export default {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         const user = await getOrCreateUser(env, tgUser, body.ref);
+        if (tgUser.photo_url) {
+  await env.DB.prepare("UPDATE users SET photo_url=? WHERE id=?")
+    .bind(tgUser.photo_url, tgUser.id).run();
+}
         const mined = computeMined(user);
         const wRow = await env.DB.prepare(
         "SELECT COALESCE(SUM(net), 0) AS total FROM withdrawals WHERE user_id=? AND status='approved'"
@@ -1109,6 +1114,40 @@ export default {
         ]);
         return json({ ok: true, reward });
       }
+
+// ── GET /api/leaderboard ──
+if (url.pathname === "/api/leaderboard" && request.method === "GET") {
+  const tgUser = await auth(request, env);
+  if (!tgUser) return json({ error: "unauthorized" }, 401);
+
+  const { results: refTop } = await env.DB.prepare(
+    "SELECT id, username, first_name, photo_url, friends_count FROM users ORDER BY friends_count DESC LIMIT 20"
+  ).all();
+
+  const { results: depTop } = await env.DB.prepare(
+    "SELECT id, username, first_name, photo_url, deposit_amount FROM users ORDER BY deposit_amount DESC LIMIT 20"
+  ).all();
+
+  const myRef = await env.DB.prepare(
+    "SELECT COUNT(*)+1 AS rank FROM users WHERE friends_count > COALESCE((SELECT friends_count FROM users WHERE id=?),-1)"
+  ).bind(tgUser.id).first();
+
+  const myDep = await env.DB.prepare(
+    "SELECT COUNT(*)+1 AS rank FROM users WHERE deposit_amount > COALESCE((SELECT deposit_amount FROM users WHERE id=?),-1)"
+  ).bind(tgUser.id).first();
+
+  const PERIOD_MS  = 480 * 60 * 60 * 1000;
+  const now        = Date.now();
+  const nextReward = (Math.floor(now / PERIOD_MS) + 1) * PERIOD_MS;
+
+  return json({
+    referrals:          refTop.map((u, i) => ({ ...u, rank: i + 1 })),
+    deposits:           depTop.map((u, i) => ({ ...u, rank: i + 1 })),
+    my_rank_referrals:  myRef?.rank ?? 999,
+    my_rank_deposits:   myDep?.rank ?? 999,
+    next_reward:        nextReward,
+  });
+}
       
       if (url.pathname.startsWith("/api/")) return json({ error: "not_found" }, 404);
       return env.ASSETS.fetch(request);
