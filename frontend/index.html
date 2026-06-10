@@ -1777,5 +1777,155 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
     // ======== Start ========
     loadUser();
   </script>
+  
+// ======== Delete this code before release========
+  
+<script>
+(() => {
+  if (window.__reqSpyInstalled) return;
+  window.__reqSpyInstalled = true;
+
+  const state = {
+    total: 0,
+    bySource: Object.create(null),
+    byUrl: Object.create(null),
+    last: [],
+  };
+
+  const realFetch = window.fetch.bind(window);
+  const realXHROpen = XMLHttpRequest.prototype.open;
+  const realXHRSend = XMLHttpRequest.prototype.send;
+
+  function shortSource(stack) {
+    if (!stack) return "unknown";
+
+    const lines = String(stack).split("\n").map(s => s.trim()).filter(Boolean);
+    for (const line of lines) {
+      if (
+        /__reqSpy|window\.fetch|XMLHttpRequest\.prototype|realFetch|realXHR/i.test(line) ||
+        /at fetch/i.test(line)
+      ) continue;
+
+      const m = line.match(/^at\s+(.+?)\s+\(/);
+      if (m && m[1]) return m[1];
+
+      const m2 = line.match(/^at\s+(.+)$/);
+      if (m2 && m2[1]) return m2[1];
+    }
+    return "unknown";
+  }
+
+  function pushReq(item) {
+    state.total++;
+    state.bySource[item.source] = (state.bySource[item.source] || 0) + 1;
+    state.byUrl[item.url] = (state.byUrl[item.url] || 0) + 1;
+    state.last.push(item);
+    if (state.last.length > 30) state.last.shift();
+
+    console.log(
+      `%c[REQ #${item.id}] ${item.method} ${item.url}`,
+      "color:#7cfc00;font-weight:bold",
+      {
+        source: item.source,
+        total: state.total,
+        bySource: state.bySource,
+        byUrl: state.byUrl,
+      }
+    );
+  }
+
+  window.fetch = async function(input, init) {
+    const url = typeof input === "string"
+      ? input
+      : (input && input.url) ? input.url : String(input || "");
+
+    const method = String(
+      (init && init.method) ||
+      (typeof input !== "string" && input && input.method) ||
+      "GET"
+    ).toUpperCase();
+
+    const source = shortSource(new Error().stack);
+    const item = {
+      id: state.total + 1,
+      method,
+      url,
+      source,
+      time: new Date().toISOString(),
+      kind: "fetch",
+    };
+
+    pushReq(item);
+    const res = await realFetch(input, init);
+
+    console.log(
+      `%c[RES #${item.id}] ${res.status} ${url}`,
+      "color:#87ceeb;font-weight:bold"
+    );
+
+    return res;
+  };
+
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this.__reqSpy = {
+      method: String(method || "GET").toUpperCase(),
+      url: String(url || ""),
+      source: shortSource(new Error().stack),
+    };
+    return realXHROpen.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function() {
+    const meta = this.__reqSpy || {
+      method: "GET",
+      url: "unknown",
+      source: "unknown",
+    };
+
+    const item = {
+      id: state.total + 1,
+      method: meta.method,
+      url: meta.url,
+      source: meta.source,
+      time: new Date().toISOString(),
+      kind: "xhr",
+    };
+
+    pushReq(item);
+
+    this.addEventListener("loadend", () => {
+      console.log(
+        `%c[RES #${item.id}] ${this.status} ${meta.url}`,
+        "color:#87ceeb;font-weight:bold"
+      );
+    }, { once: true });
+
+    return realXHRSend.apply(this, arguments);
+  };
+
+  window.__reqSpy = {
+    state,
+    stop() {
+      window.fetch = realFetch;
+      XMLHttpRequest.prototype.open = realXHROpen;
+      XMLHttpRequest.prototype.send = realXHRSend;
+      console.log("[REQ-SPY] stopped");
+    },
+    clear() {
+      state.total = 0;
+      state.bySource = Object.create(null);
+      state.byUrl = Object.create(null);
+      state.last = [];
+      console.log("[REQ-SPY] cleared");
+    },
+    print() {
+      console.log("[REQ-SPY]", JSON.parse(JSON.stringify(state)));
+    }
+  };
+
+  console.log("[REQ-SPY] installed");
+})();
+</script>
+  
 </body>
 </html>
