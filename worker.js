@@ -234,125 +234,6 @@ async function verifyInitData(initData, botToken) {
   try { return JSON.parse(userRaw); } catch { return null; }
 }
 
-async function ensureSchema(env) {
-  await env.DB.batch([
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY,
-      username TEXT,
-      first_name TEXT,
-      balance REAL NOT NULL DEFAULT 0,
-      mined REAL NOT NULL DEFAULT 0,
-      last_claim INTEGER NOT NULL DEFAULT 0,
-      deposit_amount REAL NOT NULL DEFAULT 0,
-      referrer_id INTEGER,
-      created_at INTEGER NOT NULL
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      url TEXT NOT NULL,
-      reward REAL NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS task_done (
-      user_id INTEGER NOT NULL,
-      task_id INTEGER NOT NULL,
-      done_at INTEGER NOT NULL,
-      PRIMARY KEY (user_id, task_id)
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS deposits (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      tx_hash TEXT NOT NULL UNIQUE,
-      amount REAL NOT NULL,
-      status TEXT NOT NULL DEFAULT 'confirmed',
-   created_at INTEGER NOT NULL,
-   memo TEXT
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS withdrawals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      amount REAL NOT NULL,
-      fee REAL NOT NULL,
-      net REAL NOT NULL,
-      address TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      created_at INTEGER NOT NULL
-    )`),
-  ]);
-
-  try { await env.DB.prepare("ALTER TABLE users ADD COLUMN deposit_amount REAL NOT NULL DEFAULT 0").run(); } catch {}
-try { await env.DB.prepare("ALTER TABLE deposits ADD COLUMN memo TEXT").run(); } catch {}
-try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_hash ON deposits(tx_hash)").run(); } catch {}
-try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN memo TEXT").run(); } catch {}
-try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN message_id INTEGER").run(); } catch {}
-try { await env.DB.prepare("ALTER TABLE withdrawals ADD COLUMN chat_id TEXT").run(); } catch {}
-  
-await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pending_rejections (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  withdrawal_id INTEGER NOT NULL,
-  prompt_message_id INTEGER NOT NULL,
-  created_at INTEGER NOT NULL
-)`).run();
-  
-try { await env.DB.prepare("ALTER TABLE users ADD COLUMN referral_rewards REAL NOT NULL DEFAULT 0").run(); } catch {}
-  try { await env.DB.prepare("ALTER TABLE users ADD COLUMN photo_url TEXT").run(); } catch {}
-try { await env.DB.prepare("ALTER TABLE users ADD COLUMN friends_count INTEGER NOT NULL DEFAULT 0").run(); } catch {}
-try { await env.DB.prepare("ALTER TABLE users ADD COLUMN total_reinvested REAL NOT NULL DEFAULT 0").run(); } catch {}  
-  
-await env.DB.prepare(`CREATE TABLE IF NOT EXISTS milestone_claims (
-  user_id INTEGER NOT NULL,
-  milestone INTEGER NOT NULL,
-  claimed_at INTEGER NOT NULL,
-  PRIMARY KEY (user_id, milestone)
-)`).run();
-
-  const { results } = await env.DB.prepare("SELECT COUNT(*) AS c FROM tasks").all();
-
-await env.DB.prepare(`CREATE TABLE IF NOT EXISTS daily_tasks_done (
-    user_id INTEGER NOT NULL,
-    task_id INTEGER NOT NULL,
-    done_at INTEGER NOT NULL,
-    PRIMARY KEY (user_id, task_id)
-  )`).run();
-
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    owner_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    url TEXT NOT NULL,
-    clicks_target INTEGER NOT NULL,
-    clicks_done INTEGER NOT NULL DEFAULT 0,
-    cost REAL NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active',
-    created_at INTEGER NOT NULL
-  )`).run();
-
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_tasks_done (
-    user_id INTEGER NOT NULL,
-    task_id INTEGER NOT NULL,
-    done_at INTEGER NOT NULL,
-    PRIMARY KEY (user_id, task_id)
-  )`).run();
-
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS promo_codes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code TEXT NOT NULL UNIQUE,
-    reward REAL NOT NULL,
-    max_uses INTEGER NOT NULL DEFAULT 1,
-    used_count INTEGER NOT NULL DEFAULT 0,
-    active INTEGER NOT NULL DEFAULT 1,
-    created_at INTEGER NOT NULL DEFAULT 0
-  )`).run();
-
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS promo_uses (
-    user_id INTEGER NOT NULL,
-    code_id INTEGER NOT NULL,
-    used_at INTEGER NOT NULL,
-    PRIMARY KEY (user_id, code_id)
-  )`).run();
-}
-
 async function getOrCreateUser(env, tgUser, referrerId) {
   const now = Date.now();
   const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
@@ -411,7 +292,6 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     try {
-      await ensureSchema(env);
       const FEE = Number(env.NETWORK_FEE || 1);
 
       if (url.pathname === "/api/init") return json({ ok: true });
