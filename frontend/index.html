@@ -980,7 +980,9 @@
 
       // Update wNet based on current input
       const wAmt = parseFloat(document.getElementById('wAmount').value) || 0;
-      document.getElementById('wNet').textContent = Math.max(0, wAmt - (CONFIG.fee || 1)).toFixed(4);
+      const wInitFee = (wAmt * 0.10) + 0.1;
+document.getElementById('wNet').textContent = Math.max(0, wAmt - wInitFee).toFixed(4);
+document.getElementById('wFee').textContent = wInitFee.toFixed(4);
     }
 
     // ======== Load Friends ========
