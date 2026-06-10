@@ -12,6 +12,7 @@ run_worker_first = true
 binding = "DB"
 database_name = "vault_users"
 database_id = "762006a3-45f1-49d5-b716-9c4749d5c891"
+migrations_dir = "migrations"
 
 [[durable_objects.bindings]]
 name = "DEPOSIT_CHECKER"
