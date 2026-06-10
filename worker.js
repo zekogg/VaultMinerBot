@@ -363,7 +363,7 @@ async function getOrCreateUser(env, tgUser, referrerId) {
     "INSERT INTO users(id,username,first_name,balance,mined,last_claim,deposit_amount,referrer_id,created_at) VALUES(?,?,?,0,0,?,0,?,?)"
   ).bind(tgUser.id, tgUser.username || null, tgUser.first_name || null, now, ref, now).run();
   if (ref) {
-    await env.DB.prepare("UPDATE users SET balance=balance+1, friends_count=friends_count+1 WHERE id=?").bind(ref).run();
+    await env.DB.prepare("UPDATE users SET friends_count=friends_count+1 WHERE id=?").bind(ref).run();
   }
   return await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
 }
