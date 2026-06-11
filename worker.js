@@ -1006,7 +1006,7 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     depTop = depData.results;
     await cache.put(cacheKey, new Response(
       JSON.stringify({ referrals: refTop, deposits: depTop }),
-      { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=300" } }
+      { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=28800" } }
     ));
   }
 
