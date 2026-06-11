@@ -1804,10 +1804,21 @@ function renderLeaderboard() {
 
 async function openLeaderboard() {
   document.getElementById('leaderboardModal').classList.remove('hidden');
+
+  const cached = _getCached('leaderboard');
+  if (cached) {
+    _lbData = cached;
+    _lbRewardTs = _lbData.next_reward || (Date.now() + 480 * 3600 * 1000);
+    startLbTimer();
+    renderLeaderboard();
+    return;
+  }
+
   document.getElementById('lbContent').innerHTML =
     '<div class="muted small center" style="padding:24px">Loading...</div>';
   try {
     _lbData = await apiGet('/api/leaderboard');
+    _setCache('leaderboard', _lbData);
     _lbRewardTs = _lbData.next_reward || (Date.now() + 480 * 3600 * 1000);
     startLbTimer();
     renderLeaderboard();
