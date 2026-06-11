@@ -876,6 +876,32 @@
     let refLink = '';
     let checkInterval = null;
 
+// ======== Frontend Cache (localStorage, TTL 10 دقائق) ========
+const _CACHE_TTL = 10 * 60 * 1000;
+
+function _getCached(key) {
+  try {
+    const raw = localStorage.getItem('vm_' + key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > _CACHE_TTL) {
+      localStorage.removeItem('vm_' + key);
+      return null;
+    }
+    return data;
+  } catch { return null; }
+}
+
+function _setCache(key, data) {
+  try {
+    localStorage.setItem('vm_' + key, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
+}
+
+function _invalidate(key) {
+  try { localStorage.removeItem('vm_' + key); } catch {}
+}
+    
 // ======== Profile Circle & Modal ========
     function setupProfilePhoto() {
       const photoUrl = tg?.initDataUnsafe?.user?.photo_url;
@@ -987,28 +1013,36 @@ document.getElementById('wFee').textContent = wInitFee.toFixed(4);
 
     // ======== Load Friends ========
     async function loadFriends() {
-      const data = await apiGet('/api/friends');
-      if (!data.friends) return;
-      refLink = data.link || '';
+  let data = _getCached('friends');
+  if (!data) {
+    data = await apiGet('/api/friends');
+    if (data.friends) _setCache('friends', data);
+  }
+  if (!data.friends) return;
+  refLink = data.link || '';
 
-      const friendsCount = data.friends_count || 0;
-      document.getElementById('refCount').textContent = friendsCount;
+  const friendsCount = data.friends_count || 0;
+  document.getElementById('refCount').textContent = friendsCount;
 
-      // مكافآت الإحالة
-      const rewards = data.referral_rewards || 0;
-      document.getElementById('refAvail').textContent = rewards.toFixed(4);
-      const claimBtn = document.getElementById('btnRefClaim');
-      if (rewards >= 1) {
-        claimBtn.style.opacity = '1';
-        claimBtn.style.pointerEvents = 'auto';
-      } else {
-        claimBtn.style.opacity = '0.35';
-        claimBtn.style.pointerEvents = 'none';
-      }
+  // مكافآت الإحالة
+  const rewards = data.referral_rewards || 0;
+  document.getElementById('refAvail').textContent = rewards.toFixed(4);
+  const claimBtn = document.getElementById('btnRefClaim');
+  if (rewards >= 1) {
+    claimBtn.style.opacity = '1';
+    claimBtn.style.pointerEvents = 'auto';
+  } else {
+    claimBtn.style.opacity = '0.35';
+    claimBtn.style.pointerEvents = 'none';
+  }
 
-      // الـ milestones
-      const msData = await apiGet('/api/friends/milestones');
-      const claimedSet = new Set((msData.claimed || []).map(Number));
+  // الـ milestones
+  let msData = _getCached('milestones');
+  if (!msData) {
+    msData = await apiGet('/api/friends/milestones');
+    if (msData.claimed) _setCache('milestones', msData);
+  }
+  const claimedSet = new Set((msData.claimed || []).map(Number));
 
       const MILESTONES = [
         { count: 10 }, { count: 100 }, { count: 500 },
@@ -1043,6 +1077,7 @@ document.getElementById('wFee').textContent = wInitFee.toFixed(4);
         const btn = document.getElementById('btnRefClaim');
         btn.style.opacity = '0.35';
         btn.style.pointerEvents = 'none';
+        _invalidate('friends');
         showToast('✅ Claimed: +' + parseFloat(data.claimed).toFixed(4) + ' TON');
       } else {
         const errMap = { 'min_1_ton': 'Minimum 1 TON to claim' };
@@ -1061,6 +1096,8 @@ document.getElementById('wFee').textContent = wInitFee.toFixed(4);
           btn.textContent = '✅ Claimed';
           btn.style.opacity = '0.5';
           btn.style.pointerEvents = 'none';
+          _invalidate('friends');
+          _invalidate('milestones');
           showToast('✅ Bonus claimed: +' + data.reward + ' TON');
         } else {
           const errMap = {
@@ -1082,10 +1119,14 @@ document.getElementById('wFee').textContent = wInitFee.toFixed(4);
     });
 
     async function openFriendsList() {
-      document.getElementById('friendsListModal').classList.remove('hidden');
-      const content = document.getElementById('friendsListContent');
-      content.innerHTML = '<div class="muted small center" style="padding:24px">Loading...</div>';
-      const data = await apiGet('/api/friends');
+  document.getElementById('friendsListModal').classList.remove('hidden');
+  const content = document.getElementById('friendsListContent');
+  content.innerHTML = '<div class="muted small center" style="padding:24px">Loading...</div>';
+  let data = _getCached('friends');
+  if (!data) {
+    data = await apiGet('/api/friends');
+    if (data.friends) _setCache('friends', data);
+  }
       if (!data.friends || data.friends.length === 0) {
         document.getElementById('friendsListCount').textContent = '0 friends';
         content.innerHTML = '<div class="muted small center" style="padding:24px">No friends invited yet</div>';
@@ -1217,7 +1258,8 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
         document.getElementById('depInstr').classList.add('hidden');
         showToast('✅ Deposit confirmed: +' + parseFloat(data.amount).toFixed(4) + ' TON');
         await loadUser();
-        await loadDepositHistory();
+_invalidate('dep_history');
+await loadDepositHistory();
         return;
       }
 
@@ -1265,6 +1307,7 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
         document.getElementById('profit24').textContent = (data.deposit_amount * 0.10).toFixed(4);
         document.getElementById('reInput').value = '0.0000';
         document.getElementById('reGain').textContent = '0.0000';
+        _invalidate('dep_history');
         showToast('✅ Reinvested successfully!');
       } else {
         const errMap = {
@@ -1292,8 +1335,11 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
       if (amount > (USER.balance || 0)) return showToast('❌ Insufficient balance');
       const data = await apiPost('/api/withdraw', { amount, address, memo });
       if (data.ok) {
-        showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' TON');
-        await loadWithdrawHistory();
+      USER.balance = (USER.balance || 0) - amount;
+      document.getElementById('balance').textContent = USER.balance.toFixed(4);
+      _invalidate('with_history');
+      showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' TON');
+      await loadWithdrawHistory();
       } else {
         const errMap = {
           'insufficient_balance': 'Insufficient balance',
@@ -1310,8 +1356,8 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
       if (!code) return showToast('❌ Enter a promo code');
       const data = await apiPost('/api/promo/apply', { code });
       if (data.ok) {
-        USER.balance = data.balance;
-        document.getElementById('balance').textContent = data.balance.toFixed(4);
+        USER.balance = (USER.balance || 0) + (data.reward || 0);
+        document.getElementById('balance').textContent = USER.balance.toFixed(4);
         document.getElementById('promo').value = '';
         showToast('✅ Promo applied! +' + data.reward.toFixed(4) + ' TON');
       } else {
@@ -1360,8 +1406,12 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
     }
 
     async function loadDailyTasks() {
-      const data = await apiGet('/api/daily-tasks');
-      if (!data.tasks) return;
+  let data = _getCached('daily_tasks');
+  if (!data) {
+    data = await apiGet('/api/daily-tasks');
+    if (data.tasks) _setCache('daily_tasks', data);
+  }
+  if (!data.tasks) return;
       const list = document.getElementById('dailyTasksList');
       list.innerHTML = '';
       data.tasks.forEach(t => list.appendChild(renderDailyTask(t)));
@@ -1398,6 +1448,7 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
         USER.balance = data.balance;
         document.getElementById('balance').textContent = data.balance.toFixed(4);
         if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+        _invalidate('daily_tasks');
         showToast('✅ +' + data.reward.toFixed(3) + ' TON');
       } else {
         const errMap = {
@@ -1413,8 +1464,12 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
     const _partnerTaskData = {};
 
     async function loadPartnerTasks() {
-      const data = await apiGet('/api/partner-tasks');
-      const list = document.getElementById('partnerTasksList');
+  let data = _getCached('partner_tasks');
+  if (!data) {
+    data = await apiGet('/api/partner-tasks');
+    if (data.tasks) _setCache('partner_tasks', data);
+  }
+  const list = document.getElementById('partnerTasksList');
       if (!data.tasks || data.tasks.length === 0) {
         list.innerHTML = '<div class="empty">No partner tasks yet</div>';
         return;
@@ -1467,10 +1522,11 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
       if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" disabled>...</button>`;
       const data = await apiPost('/api/partner-tasks/complete', { task_id: taskId });
       if (data.ok) {
-        USER.balance = data.balance;
-        document.getElementById('balance').textContent = data.balance.toFixed(4);
-        if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
-        showToast('✅ +0.001 TON');
+    USER.balance = (USER.balance || 0) + (data.reward || 0.001);
+    document.getElementById('balance').textContent = USER.balance.toFixed(4);
+    if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+    _invalidate('partner_tasks');
+    showToast('✅ +0.001 TON');
       } else {
         const errMap = {
           'already_done': 'Already completed',
@@ -1507,12 +1563,13 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
       const data = await apiPost('/api/partner-tasks/add', { title, url, clicks });
       if (data.ok) {
         document.getElementById('addTaskModal').classList.add('hidden');
-        USER.balance = data.balance;
-        document.getElementById('balance').textContent = data.balance.toFixed(4);
+        USER.balance = (USER.balance || 0) - (data.cost || 0);
+        document.getElementById('balance').textContent = USER.balance.toFixed(4);
         document.getElementById('atTitle').value  = '';
         document.getElementById('atLink').value   = '';
         document.getElementById('atClicks').value = '500';
         document.getElementById('atCost').textContent = '1.0000';
+        _invalidate('partner_tasks');
         showToast('✅ Task published!');
         loadPartnerTasks();
       } else {
@@ -1529,7 +1586,11 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
 // ======== Load Deposit History ========
 async function loadDepositHistory() {
   try {
-    const data = await apiGet('/api/deposit/history');
+    let data = _getCached('dep_history');
+    if (!data) {
+      data = await apiGet('/api/deposit/history');
+      if (data.deposits) _setCache('dep_history', data);
+    }
     const container = document.getElementById('depHistory');
 
     if (!data.deposits || data.deposits.length === 0) {
@@ -1566,9 +1627,13 @@ return `
 
 // ======== Load Withdraw History ========
     async function loadWithdrawHistory() {
-      try {
-        const data = await apiGet('/api/withdraw/history');
-        const container = document.getElementById('wHistory');
+  try {
+    let data = _getCached('with_history');
+    if (!data) {
+      data = await apiGet('/api/withdraw/history');
+      if (data.withdrawals) _setCache('with_history', data);
+    }
+    const container = document.getElementById('wHistory');
         if (!data.withdrawals || data.withdrawals.length === 0) {
           container.className = 'empty';
           container.innerHTML = 'No payments';
