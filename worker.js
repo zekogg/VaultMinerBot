@@ -302,29 +302,26 @@ export default {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         const user = await getOrCreateUser(env, tgUser, body.ref);
-        if (tgUser.photo_url) {
+if (tgUser.photo_url && tgUser.photo_url !== user.photo_url) {
   await env.DB.prepare("UPDATE users SET photo_url=? WHERE id=?")
     .bind(tgUser.photo_url, tgUser.id).run();
 }
-        const mined = computeMined(user);
-        const wRow = await env.DB.prepare(
-        "SELECT COALESCE(SUM(net), 0) AS total FROM withdrawals WHERE user_id=? AND status='approved'"
-      ).bind(tgUser.id).first();
+const mined = computeMined(user);
 
-      return json({
-        user: {
-          id: user.id,
-          username: user.username,
-          first_name: user.first_name,
-          balance: user.balance,
-          mined,
-          last_claim: user.last_claim,
-          deposit_amount: user.deposit_amount || 0,
-          created_at: user.created_at,
-          total_withdrawn: wRow?.total || 0,
-        },
-        config: { fee: FEE, bot_username: env.BOT_USERNAME || "" },
-      });
+return json({
+  user: {
+    id: user.id,
+    username: user.username,
+    first_name: user.first_name,
+    balance: user.balance,
+    mined,
+    last_claim: user.last_claim,
+    deposit_amount: user.deposit_amount || 0,
+    created_at: user.created_at,
+    total_withdrawn: user.total_withdrawn || 0,
+  },
+  config: { fee: FEE, bot_username: env.BOT_USERNAME || "" },
+});
       }
 
       // claim
@@ -338,32 +335,6 @@ export default {
         await env.DB.prepare("UPDATE users SET balance=balance+?, last_claim=? WHERE id=?")
           .bind(mined, now, user.id).run();
         return json({ ok: true, claimed: mined, balance: user.balance + mined });
-      }
-
-      // tasks list
-      if (url.pathname === "/api/tasks" && request.method === "GET") {
-        const tgUser = await auth(request, env);
-        if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const { results: tasks } = await env.DB.prepare("SELECT * FROM tasks WHERE active=1").all();
-        const { results: done } = await env.DB.prepare("SELECT task_id FROM task_done WHERE user_id=?").bind(tgUser.id).all();
-        const doneSet = new Set(done.map(d => d.task_id));
-        return json({ tasks: tasks.map(t => ({ ...t, done: doneSet.has(t.id) })) });
-      }
-
-      // complete task
-      if (url.pathname === "/api/tasks/complete" && request.method === "POST") {
-        const tgUser = await auth(request, env);
-        if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const { task_id } = await request.json();
-        const task = await env.DB.prepare("SELECT * FROM tasks WHERE id=? AND active=1").bind(task_id).first();
-        if (!task) return json({ error: "task_not_found" }, 404);
-        const exists = await env.DB.prepare("SELECT 1 FROM task_done WHERE user_id=? AND task_id=?").bind(tgUser.id, task_id).first();
-        if (exists) return json({ error: "already_done" }, 400);
-        await env.DB.batch([
-          env.DB.prepare("INSERT INTO task_done(user_id,task_id,done_at) VALUES(?,?,?)").bind(tgUser.id, task_id, Date.now()),
-          env.DB.prepare("UPDATE users SET balance=balance+? WHERE id=?").bind(task.reward, tgUser.id),
-        ]);
-        return json({ ok: true, reward: task.reward });
       }
 
       // friends
@@ -466,8 +437,7 @@ await env.DB.batch([
     "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?,?,?,'reinvested',?,?)"
   ).bind(tgUser.id, reTxHash, amt, Date.now(), 'Reinvest'),
 ]);
-        const updated = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
-        return json({ ok: true, deposit_amount: updated.deposit_amount, balance: updated.balance });
+        return json({ ok: true, deposit_amount: (user.deposit_amount || 0) + amt, balance: user.balance - amt });
       }
 
       // withdraw
@@ -490,11 +460,13 @@ await env.DB.batch([
         if (tgUser.username)        displayName = `@${tgUser.username}`;
         else if (tgUser.first_name) displayName = tgUser.first_name;
         else                        displayName = `ID: ${tgUser.id}`;
-        await env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(amt, tgUser.id).run();
-        const insertRes = await env.DB.prepare(
-          "INSERT INTO withdrawals(user_id,amount,fee,net,address,memo,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)"
-        ).bind(tgUser.id, amt, totalFee, net, address, memoText, Date.now()).run();
-        const withdrawalId = insertRes.meta.last_row_id;
+        const batchResults = await env.DB.batch([
+  env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(amt, tgUser.id),
+  env.DB.prepare(
+    "INSERT INTO withdrawals(user_id,amount,fee,net,address,memo,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)"
+  ).bind(tgUser.id, amt, totalFee, net, address, memoText, Date.now()),
+]);
+const withdrawalId = batchResults[1].meta.last_row_id;
         const notifText =
           `🔴 <b>Withdrawal Request</b>\n\n` +
           `👤 ${displayName}\n` +
@@ -541,17 +513,16 @@ await env.DB.batch([
         if (!user) return json({ error: "user_not_found" }, 404);
 
         const todayStart = getTodayUTCStart();
-        const { results: doneRows } = await env.DB.prepare(
-          "SELECT task_id, done_at FROM daily_tasks_done WHERE user_id=?"
-        ).bind(tgUser.id).all();
+const [doneData, depositData] = await env.DB.batch([
+  env.DB.prepare("SELECT task_id, done_at FROM daily_tasks_done WHERE user_id=?").bind(tgUser.id),
+  env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
+]);
 
-        const doneMap = {};
-        for (const r of doneRows) doneMap[r.task_id] = r.done_at;
+const doneRows = doneData.results;
+const depositOkToday = depositData.results.length > 0;
 
-        const todayDeposit = await env.DB.prepare(
-  "SELECT 1 FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=?"
-).bind(tgUser.id, todayStart).first();
-const depositOkToday = !!todayDeposit;
+const doneMap = {};
+for (const r of doneRows) doneMap[r.task_id] = r.done_at;
 
 const DAILY_TASKS = [
   { id: 1, title: "Just check in",            icon: "✅", reward: 0.001, type: "checkin", url: null },
@@ -599,16 +570,15 @@ return json({
 }
 
         await env.DB.batch([
-          env.DB.prepare(
-            "INSERT OR REPLACE INTO daily_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
-          ).bind(tgUser.id, tid, Date.now()),
-          env.DB.prepare(
-            "UPDATE users SET balance=balance+? WHERE id=?"
-          ).bind(reward, tgUser.id),
-        ]);
+  env.DB.prepare(
+    "INSERT OR REPLACE INTO daily_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
+  ).bind(tgUser.id, tid, Date.now()),
+  env.DB.prepare(
+    "UPDATE users SET balance=balance+? WHERE id=?"
+  ).bind(reward, tgUser.id),
+]);
 
-        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
-        return json({ ok: true, reward, balance: updated.balance });
+return json({ ok: true, reward, balance: user.balance + reward });
       }
 
       // ── GET /api/partner-tasks ──
@@ -617,8 +587,8 @@ return json({
         if (!tgUser) return json({ error: "unauthorized" }, 401);
 
         const { results: tasks } = await env.DB.prepare(
-          "SELECT * FROM partner_tasks WHERE status='active' ORDER BY created_at DESC"
-        ).all();
+  "SELECT * FROM partner_tasks WHERE status='active' ORDER BY created_at DESC LIMIT 50"
+).all();
 
         const { results: doneRows } = await env.DB.prepare(
           "SELECT task_id FROM partner_tasks_done WHERE user_id=?"
@@ -659,19 +629,18 @@ return json({
         const newStatus = newClicks >= task.clicks_target ? "completed" : "active";
 
         await env.DB.batch([
-          env.DB.prepare(
-            "INSERT INTO partner_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
-          ).bind(tgUser.id, tid, Date.now()),
-          env.DB.prepare(
-            "UPDATE partner_tasks SET clicks_done=?, status=? WHERE id=?"
-          ).bind(newClicks, newStatus, tid),
-          env.DB.prepare(
-            "UPDATE users SET balance=balance+0.001 WHERE id=?"
-          ).bind(tgUser.id),
-        ]);
+  env.DB.prepare(
+    "INSERT INTO partner_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
+  ).bind(tgUser.id, tid, Date.now()),
+  env.DB.prepare(
+    "UPDATE partner_tasks SET clicks_done=?, status=? WHERE id=?"
+  ).bind(newClicks, newStatus, tid),
+  env.DB.prepare(
+    "UPDATE users SET balance=balance+0.001 WHERE id=?"
+  ).bind(tgUser.id),
+]);
 
-        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
-        return json({ ok: true, reward: 0.001, balance: updated.balance });
+return json({ ok: true, reward: 0.001 });
       }
 
       // ── POST /api/partner-tasks/add ──
@@ -698,8 +667,7 @@ return json({
           ).bind(tgUser.id, title.slice(0, 80), taskUrl.slice(0, 200), clk, cost, Date.now()),
         ]);
 
-        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
-        return json({ ok: true, cost, balance: updated.balance });
+        return json({ ok: true, cost });
       }
 
       // ── POST /api/promo/apply ──
@@ -733,8 +701,7 @@ return json({
           ).bind(promo.reward, tgUser.id),
         ]);
 
-        const updated = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
-        return json({ ok: true, reward: promo.reward, balance: updated.balance });
+        return json({ ok: true, reward: promo.reward });
       }
       
       // webhook
@@ -791,7 +758,10 @@ return json({
               return json({ ok: true });
             }
 
-            await env.DB.prepare("UPDATE withdrawals SET status='approved' WHERE id=?").bind(withdrawalId).run();
+            await env.DB.batch([
+  env.DB.prepare("UPDATE withdrawals SET status='approved' WHERE id=?").bind(withdrawalId),
+  env.DB.prepare("UPDATE users SET total_withdrawn=COALESCE(total_withdrawn,0)+? WHERE id=?").bind(withdrawal.net, withdrawal.user_id),
+]);
 
             const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(withdrawal.user_id).first();
             let displayName;
@@ -1017,34 +987,51 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
   const tgUser = await auth(request, env);
   if (!tgUser) return json({ error: "unauthorized" }, 401);
 
-  const { results: refTop } = await env.DB.prepare(
-    "SELECT id, username, first_name, photo_url, friends_count FROM users ORDER BY friends_count DESC LIMIT 20"
-  ).all();
+  // Worker Cache للقوائم فقط — 5 دقائق مشتركة بين كل المستخدمين
+  const cache    = caches.default;
+  const cacheKey = new Request("https://cache.vault/leaderboard-lists");
+  let refTop, depTop;
 
-  const { results: depTop } = await env.DB.prepare(
-    "SELECT id, username, first_name, photo_url, deposit_amount FROM users ORDER BY deposit_amount DESC LIMIT 20"
-  ).all();
+  const cachedRes = await cache.match(cacheKey);
+  if (cachedRes) {
+    const cached = await cachedRes.json();
+    refTop = cached.referrals;
+    depTop = cached.deposits;
+  } else {
+    const [refData, depData] = await env.DB.batch([
+      env.DB.prepare("SELECT id, username, first_name, photo_url, friends_count FROM users ORDER BY friends_count DESC LIMIT 20"),
+      env.DB.prepare("SELECT id, username, first_name, photo_url, deposit_amount FROM users ORDER BY deposit_amount DESC LIMIT 20"),
+    ]);
+    refTop = refData.results;
+    depTop = depData.results;
+    await cache.put(cacheKey, new Response(
+      JSON.stringify({ referrals: refTop, deposits: depTop }),
+      { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=300" } }
+    ));
+  }
 
-  const myRef = await env.DB.prepare(
-    "SELECT COUNT(*)+1 AS rank FROM users WHERE friends_count > COALESCE((SELECT friends_count FROM users WHERE id=?),-1)"
-  ).bind(tgUser.id).first();
-
-  const myDep = await env.DB.prepare(
-    "SELECT COUNT(*)+1 AS rank FROM users WHERE deposit_amount > COALESCE((SELECT deposit_amount FROM users WHERE id=?),-1)"
-  ).bind(tgUser.id).first();
+  // My Rank — دائماً fresh، في batch واحد
+  const [myRefResult, myDepResult] = await env.DB.batch([
+    env.DB.prepare(
+      "SELECT COUNT(*)+1 AS rank FROM users WHERE friends_count > COALESCE((SELECT friends_count FROM users WHERE id=?),-1)"
+    ).bind(tgUser.id),
+    env.DB.prepare(
+      "SELECT COUNT(*)+1 AS rank FROM users WHERE deposit_amount > COALESCE((SELECT deposit_amount FROM users WHERE id=?),-1)"
+    ).bind(tgUser.id),
+  ]);
 
   const PERIOD_MS  = 480 * 60 * 60 * 1000;
-const LB_EPOCH   = 1781049600000; // June 10, 2026 00:00 UTC
-const now        = Date.now();
-const elapsed    = Math.max(0, now - LB_EPOCH);
-const nextReward = LB_EPOCH + (Math.floor(elapsed / PERIOD_MS) + 1) * PERIOD_MS;
+  const LB_EPOCH   = 1781049600000;
+  const now        = Date.now();
+  const elapsed    = Math.max(0, now - LB_EPOCH);
+  const nextReward = LB_EPOCH + (Math.floor(elapsed / PERIOD_MS) + 1) * PERIOD_MS;
 
   return json({
-    referrals:          refTop.map((u, i) => ({ ...u, rank: i + 1 })),
-    deposits:           depTop.map((u, i) => ({ ...u, rank: i + 1 })),
-    my_rank_referrals:  myRef?.rank ?? 999,
-    my_rank_deposits:   myDep?.rank ?? 999,
-    next_reward:        nextReward,
+    referrals:         refTop.map((u, i) => ({ ...u, rank: i + 1 })),
+    deposits:          depTop.map((u, i) => ({ ...u, rank: i + 1 })),
+    my_rank_referrals: myRefResult.results[0]?.rank ?? 999,
+    my_rank_deposits:  myDepResult.results[0]?.rank ?? 999,
+    next_reward:       nextReward,
   });
 }
       
