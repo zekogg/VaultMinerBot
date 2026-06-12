@@ -430,19 +430,25 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         const { amount } = await request.json();
         const amt = Number(amount);
         if (!amt || amt < 0.1) return json({ error: "min_reinvest_0.1" }, 400);
-        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
-        if (!user) return json({ error: "user_not_found" }, 404);
-        if (user.balance < amt) return json({ error: "insufficient_balance" }, 400);
+        const deductResult = await env.DB.prepare(
+          "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?"
+        ).bind(amt, tgUser.id, amt).run();
+
+        if (deductResult.meta.changes === 0)
+          return json({ error: "insufficient_balance" }, 400);
+
         const reTxHash = `reinvest_${tgUser.id}_${Date.now()}`;
-await env.DB.batch([
-  env.DB.prepare(
-    "UPDATE users SET balance=balance-?, deposit_amount=deposit_amount+?, total_reinvested=COALESCE(total_reinvested,0)+? WHERE id=?"
-  ).bind(amt, amt, amt, tgUser.id),
-  env.DB.prepare(
-    "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?,?,?,'reinvested',?,?)"
-  ).bind(tgUser.id, reTxHash, amt, Date.now(), 'Reinvest'),
-]);
-        return json({ ok: true, deposit_amount: (user.deposit_amount || 0) + amt, balance: user.balance - amt });
+        await env.DB.batch([
+          env.DB.prepare(
+            "UPDATE users SET deposit_amount=deposit_amount+?, total_reinvested=COALESCE(total_reinvested,0)+? WHERE id=?"
+          ).bind(amt, amt, tgUser.id),
+          env.DB.prepare(
+            "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?,?,?,'reinvested',?,?)"
+          ).bind(tgUser.id, reTxHash, amt, Date.now(), 'Reinvest'),
+        ]);
+
+        const updatedUser = await env.DB.prepare("SELECT balance, deposit_amount FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, deposit_amount: updatedUser.deposit_amount, balance: updatedUser.balance });
       }
 
       // withdraw
@@ -559,36 +565,32 @@ return json({
         if (![1, 2, 3, 4].includes(tid)) return json({ error: "invalid_task" }, 400);
 
         const todayStart = getTodayUTCStart();
-        const existing = await env.DB.prepare(
-          "SELECT done_at FROM daily_tasks_done WHERE user_id=? AND task_id=?"
-        ).bind(tgUser.id, tid).first();
-
-        if (existing && existing.done_at >= todayStart) {
-          return json({ error: "already_done_today" }, 400);
-        }
-
-        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
-        if (!user) return json({ error: "user_not_found" }, 404);
-
         const reward = tid === 4 ? 0.01 : 0.001;
 
         if (tid === 4) {
-  const todayDep = await env.DB.prepare(
-    "SELECT 1 FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=?"
-  ).bind(tgUser.id, todayStart).first();
-  if (!todayDep) return json({ error: "deposit_required" }, 400);
-}
+          const todayDep = await env.DB.prepare(
+            "SELECT 1 FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=?"
+          ).bind(tgUser.id, todayStart).first();
+          if (!todayDep) return json({ error: "deposit_required" }, 400);
+        }
 
-        await env.DB.batch([
-  env.DB.prepare(
-    "INSERT OR REPLACE INTO daily_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
-  ).bind(tgUser.id, tid, Date.now()),
-  env.DB.prepare(
-    "UPDATE users SET balance=balance+? WHERE id=?"
-  ).bind(reward, tgUser.id),
-]);
+        // عملية ذرّية: تنجح فقط إذا لم تُسجَّل المهمة اليوم بالفعل
+        const claimResult = await env.DB.prepare(
+          `INSERT INTO daily_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)
+           ON CONFLICT(user_id, task_id) DO UPDATE SET done_at=excluded.done_at
+           WHERE daily_tasks_done.done_at < ?`
+        ).bind(tgUser.id, tid, Date.now(), todayStart).run();
 
-return json({ ok: true, reward, balance: user.balance + reward });
+        if (claimResult.meta.changes === 0) {
+          return json({ error: "already_done_today" }, 400);
+        }
+
+        await env.DB.prepare(
+          "UPDATE users SET balance=balance+? WHERE id=?"
+        ).bind(reward, tgUser.id).run();
+
+        const user = await env.DB.prepare("SELECT balance FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, reward, balance: user.balance });
       }
 
       // ── GET /api/partner-tasks ──
@@ -672,17 +674,18 @@ return json({ ok: true, reward, balance: user.balance + reward });
         const clk = Number(clicks);
         if (clk < 250) return json({ error: "min_clicks_250" }, 400);
 
-        const cost = clk / 500;
-        const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
-        if (!user) return json({ error: "user_not_found" }, 404);
-        if ((user.balance || 0) < cost) return json({ error: "insufficient_balance" }, 400);
+      const cost = clk / 500;
 
-        await env.DB.batch([
-          env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(cost, tgUser.id),
-          env.DB.prepare(
-            "INSERT INTO partner_tasks(owner_id, title, url, clicks_target, cost, created_at) VALUES(?,?,?,?,?,?)"
-          ).bind(tgUser.id, title.slice(0, 80), taskUrl.slice(0, 200), clk, cost, Date.now()),
-        ]);
+        const deductResult = await env.DB.prepare(
+          "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?"
+        ).bind(cost, tgUser.id, cost).run();
+
+        if (deductResult.meta.changes === 0)
+          return json({ error: "insufficient_balance" }, 400);
+
+        await env.DB.prepare(
+          "INSERT INTO partner_tasks(owner_id, title, url, clicks_target, cost, created_at) VALUES(?,?,?,?,?,?)"
+        ).bind(tgUser.id, title.slice(0, 80), taskUrl.slice(0, 200), clk, cost, Date.now()).run();
 
         return json({ ok: true, cost });
       }
