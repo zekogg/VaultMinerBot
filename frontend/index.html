@@ -1461,7 +1461,17 @@ await loadDepositHistory();
     }
 
     // ======== Partner Tasks ========
+    // ======== Partner Tasks ========
     const _partnerTaskData = {};
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
     async function loadPartnerTasks() {
   let data = _getCached('partner_tasks');
@@ -1491,7 +1501,7 @@ await loadDepositHistory();
           <div class="head">
             <div class="icon">🔗</div>
             <div>
-              <div><b>${t.title}</b></div>
+              <div><b>${escapeHtml(t.title)}</b></div>
               <div class="muted small">${t.remaining} clicks remaining</div>
             </div>
           </div>
