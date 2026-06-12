@@ -330,11 +330,16 @@ return json({
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
         const mined = computeMined(user);
-        if (mined < 0.1) return json({ error: "min_collect_0.1" }, 400);
-        const now = Date.now();
-        await env.DB.prepare("UPDATE users SET balance=balance+?, last_claim=? WHERE id=?")
-          .bind(mined, now, user.id).run();
-        return json({ ok: true, claimed: mined, balance: user.balance + mined });
+if (mined < 0.1) return json({ error: "min_collect_0.1" }, 400);
+const now = Date.now();
+const claimResult = await env.DB.prepare(
+  "UPDATE users SET balance=balance+?, last_claim=? WHERE id=? AND last_claim=?"
+).bind(mined, now, user.id, user.last_claim).run();
+
+if (claimResult.meta.changes === 0) 
+  return json({ error: "already_claimed" }, 400);
+
+return json({ ok: true, claimed: mined, balance: user.balance + mined });
       }
 
       // friends
@@ -460,13 +465,18 @@ await env.DB.batch([
         if (tgUser.username)        displayName = `@${tgUser.username}`;
         else if (tgUser.first_name) displayName = tgUser.first_name;
         else                        displayName = `ID: ${tgUser.id}`;
-        const batchResults = await env.DB.batch([
-  env.DB.prepare("UPDATE users SET balance=balance-? WHERE id=?").bind(amt, tgUser.id),
-  env.DB.prepare(
-    "INSERT INTO withdrawals(user_id,amount,fee,net,address,memo,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)"
-  ).bind(tgUser.id, amt, totalFee, net, address, memoText, Date.now()),
-]);
-const withdrawalId = batchResults[1].meta.last_row_id;
+        const deductResult = await env.DB.prepare(
+  "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?"
+).bind(amt, tgUser.id, amt).run();
+
+if (deductResult.meta.changes === 0) 
+  return json({ error: "insufficient_balance" }, 400);
+
+const insertResult = await env.DB.prepare(
+  "INSERT INTO withdrawals(user_id,amount,fee,net,address,memo,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)"
+).bind(tgUser.id, amt, totalFee, net, address, memoText, Date.now()).run();
+
+const withdrawalId = insertResult.meta.last_row_id;
         const notifText =
           `🔴 <b>Withdrawal Request</b>\n\n` +
           `👤 ${displayName}\n` +
@@ -628,19 +638,26 @@ return json({ ok: true, reward, balance: user.balance + reward });
         const newClicks = task.clicks_done + 1;
         const newStatus = newClicks >= task.clicks_target ? "completed" : "active";
 
-        await env.DB.batch([
-  env.DB.prepare(
-    "INSERT INTO partner_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
-  ).bind(tgUser.id, tid, Date.now()),
-  env.DB.prepare(
-    "UPDATE partner_tasks SET clicks_done=?, status=? WHERE id=?"
-  ).bind(newClicks, newStatus, tid),
-  env.DB.prepare(
-    "UPDATE users SET balance=balance+0.001 WHERE id=?"
-  ).bind(tgUser.id),
-]);
+        try {
+          await env.DB.batch([
+            env.DB.prepare(
+              "INSERT INTO partner_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)"
+            ).bind(tgUser.id, tid, Date.now()),
+            env.DB.prepare(
+              "UPDATE partner_tasks SET clicks_done=?, status=? WHERE id=?"
+            ).bind(newClicks, newStatus, tid),
+            env.DB.prepare(
+              "UPDATE users SET balance=balance+0.001 WHERE id=?"
+            ).bind(tgUser.id),
+          ]);
+        } catch (e) {
+          if (String(e).includes("UNIQUE") || String(e).includes("PRIMARY KEY")) {
+            return json({ error: "already_done" }, 400);
+          }
+          throw e;
+        }
 
-return json({ ok: true, reward: 0.001 });
+        return json({ ok: true, reward: 0.001 });
       }
 
       // ── POST /api/partner-tasks/add ──
@@ -672,37 +689,39 @@ return json({ ok: true, reward: 0.001 });
 
       // ── POST /api/promo/apply ──
       if (url.pathname === "/api/promo/apply" && request.method === "POST") {
-        const tgUser = await auth(request, env);
-        if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const { code } = await request.json();
-        if (!code || !code.trim()) return json({ error: "invalid_code" }, 400);
+  const tgUser = await auth(request, env);
+  if (!tgUser) return json({ error: "unauthorized" }, 401);
+  const { code } = await request.json();
+  if (!code || !code.trim()) return json({ error: "invalid_code" }, 400);
 
-        const promo = await env.DB.prepare(
-          "SELECT * FROM promo_codes WHERE code=? AND active=1"
-        ).bind(code.trim().toUpperCase()).first();
+  const promo = await env.DB.prepare(
+    "SELECT * FROM promo_codes WHERE code=? AND active=1"
+  ).bind(code.trim().toUpperCase()).first();
+  if (!promo) return json({ error: "invalid_code" }, 400);
 
-        if (!promo) return json({ error: "invalid_code" }, 400);
-        if (promo.used_count >= promo.max_uses) return json({ error: "code_exhausted" }, 400);
+  const alreadyUsed = await env.DB.prepare(
+    "SELECT 1 FROM promo_uses WHERE user_id=? AND code_id=?"
+  ).bind(tgUser.id, promo.id).first();
+  if (alreadyUsed) return json({ error: "already_used" }, 400);
 
-        const alreadyUsed = await env.DB.prepare(
-          "SELECT 1 FROM promo_uses WHERE user_id=? AND code_id=?"
-        ).bind(tgUser.id, promo.id).first();
-        if (alreadyUsed) return json({ error: "already_used" }, 400);
+  // ← atomic: يزيد فقط إذا used_count < max_uses
+  const upd = await env.DB.prepare(
+    "UPDATE promo_codes SET used_count=used_count+1 WHERE id=? AND used_count < max_uses AND active=1"
+  ).bind(promo.id).run();
 
-        await env.DB.batch([
-          env.DB.prepare(
-            "INSERT INTO promo_uses(user_id, code_id, used_at) VALUES(?,?,?)"
-          ).bind(tgUser.id, promo.id, Date.now()),
-          env.DB.prepare(
-            "UPDATE promo_codes SET used_count=used_count+1 WHERE id=?"
-          ).bind(promo.id),
-          env.DB.prepare(
-            "UPDATE users SET balance=balance+? WHERE id=?"
-          ).bind(promo.reward, tgUser.id),
-        ]);
+  if (upd.meta.changes === 0) return json({ error: "code_exhausted" }, 400);
 
-        return json({ ok: true, reward: promo.reward });
-      }
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO promo_uses(user_id, code_id, used_at) VALUES(?,?,?)"
+    ).bind(tgUser.id, promo.id, Date.now()),
+    env.DB.prepare(
+      "UPDATE users SET balance=balance+? WHERE id=?"
+    ).bind(promo.reward, tgUser.id),
+  ]);
+
+  return json({ ok: true, reward: promo.reward });
+}
       
       // webhook
       if (url.pathname === "/api/webhook" && request.method === "POST") {
@@ -943,9 +962,13 @@ return json({ ok: true, reward: 0.001 });
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
         if (!user) return json({ error: "user_not_found" }, 404);
         const rewards = user.referral_rewards || 0;
-        if (rewards < 1) return json({ error: "min_1_ton" }, 400);
-        await env.DB.prepare("UPDATE users SET balance=balance+?, referral_rewards=0 WHERE id=?")
-          .bind(rewards, tgUser.id).run();
+if (rewards < 1) return json({ error: "min_1_ton" }, 400);
+const claimResult = await env.DB.prepare(
+  "UPDATE users SET balance=balance+?, referral_rewards=0 WHERE id=? AND referral_rewards>=1"
+).bind(rewards, tgUser.id).run();
+
+if (claimResult.meta.changes === 0) 
+  return json({ error: "min_1_ton" }, 400);
         return json({ ok: true, claimed: rewards, balance: user.balance + rewards });
       }
 
@@ -970,15 +993,21 @@ return json({ ok: true, reward: 0.001 });
         const user = await env.DB.prepare("SELECT friends_count FROM users WHERE id=?").bind(tgUser.id).first();
         if (!user) return json({ error: "user_not_found" }, 404);
         if ((user.friends_count || 0) < Number(milestone)) return json({ error: "not_enough_friends" }, 400);
-        const already = await env.DB.prepare(
-          "SELECT 1 FROM milestone_claims WHERE user_id=? AND milestone=?"
-        ).bind(tgUser.id, Number(milestone)).first();
-        if (already) return json({ error: "already_claimed" }, 400);
-        await env.DB.batch([
-          env.DB.prepare("INSERT INTO milestone_claims(user_id, milestone, claimed_at) VALUES(?,?,?)")
-            .bind(tgUser.id, Number(milestone), Date.now()),
-          env.DB.prepare("UPDATE users SET balance=balance+? WHERE id=?").bind(reward, tgUser.id),
-        ]);
+        try {
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO milestone_claims(user_id, milestone, claimed_at) VALUES(?,?,?)"
+    ).bind(tgUser.id, Number(milestone), Date.now()),
+    env.DB.prepare(
+      "UPDATE users SET balance=balance+? WHERE id=?"
+    ).bind(reward, tgUser.id),
+  ]);
+} catch (e) {
+  if (String(e).includes("UNIQUE") || String(e).includes("PRIMARY KEY")) {
+    return json({ error: "already_claimed" }, 400);
+  }
+  throw e;
+}
         return json({ ok: true, reward });
       }
 
