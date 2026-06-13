@@ -10,6 +10,20 @@ function json(data, status = 200) {
     headers: { "Content-Type": "application/json", ...CORS },
   });
 }
+
+// ═══════════════════════════════════════════════════════════
+//  Rate Limiting (in-memory per isolate)
+// ═══════════════════════════════════════════════════════════
+const _rateLimits = new Map();
+
+function isRateLimited(userId, action, windowMs) {
+  const key = `${userId}:${action}`;
+  const now = Date.now();
+  const last = _rateLimits.get(key);
+  if (last && (now - last) < windowMs) return true;
+  _rateLimits.set(key, now);
+  return false;
+}
 // ═══════════════════════════════════════════════════════════
 //  DURABLE OBJECT — DepositChecker
 //  واحد لكل مستخدم — يعمل داخل Cloudflare بغض النظر عن المتصفح
@@ -328,6 +342,7 @@ return json({
       if (url.pathname === "/api/claim" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (isRateLimited(tgUser.id, "claim", 3000)) return json({ error: "rate_limited" }, 429);
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
         const mined = computeMined(user);
 if (mined < 0.1) return json({ error: "min_collect_0.1" }, 400);
@@ -427,6 +442,7 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
       if (url.pathname === "/api/reinvest" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (isRateLimited(tgUser.id, "reinvest", 3000)) return json({ error: "rate_limited" }, 429);
         const { amount } = await request.json();
         const amt = Number(amount);
         if (!amt || amt < 0.1) return json({ error: "min_reinvest_0.1" }, 400);
@@ -455,6 +471,7 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
       if (url.pathname === "/api/withdraw" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (isRateLimited(tgUser.id, "withdraw", 10000)) return json({ error: "rate_limited" }, 429);
         const { amount, address, memo } = await request.json();
         const amt = Number(amount);
         if (!amt || amt < 0.2 || !address) return json({ error: "invalid_input" }, 400);
@@ -560,6 +577,7 @@ return json({
       if (url.pathname === "/api/daily-tasks/complete" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (isRateLimited(tgUser.id, "daily_task", 2000)) return json({ error: "rate_limited" }, 429);
         const { task_id } = await request.json();
         const tid = Number(task_id);
         if (![1, 2, 3, 4].includes(tid)) return json({ error: "invalid_task" }, 400);
@@ -621,6 +639,7 @@ return json({
       if (url.pathname === "/api/partner-tasks/complete" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (isRateLimited(tgUser.id, "partner_task", 2000)) return json({ error: "rate_limited" }, 429);
         const { task_id } = await request.json();
         const tid = Number(task_id);
 
@@ -666,8 +685,9 @@ return json({
       if (url.pathname === "/api/partner-tasks/add" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (isRateLimited(tgUser.id, "add_task", 3000)) return json({ error: "rate_limited" }, 429);
         const { title, url: taskUrl, clicks } = await request.json();
-
+        
         if (!title || !taskUrl || !clicks) return json({ error: "invalid_input" }, 400);
         try { new URL(taskUrl); } catch { return json({ error: "invalid_url" }, 400); }
 
@@ -694,6 +714,7 @@ return json({
       if (url.pathname === "/api/promo/apply" && request.method === "POST") {
   const tgUser = await auth(request, env);
   if (!tgUser) return json({ error: "unauthorized" }, 401);
+  if (isRateLimited(tgUser.id, "promo", 3000)) return json({ error: "rate_limited" }, 429);
   const { code } = await request.json();
   if (!code || !code.trim()) return json({ error: "invalid_code" }, 400);
 
