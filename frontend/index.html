@@ -483,6 +483,15 @@
 .lb-gold   { color: #f5c842; }
 .lb-silver { color: #bfc5d0; }
 .lb-bronze { color: #c4784e; }
+
+.btn, .task-btn, .ghost, .copy-btn, .nav button, .lb-tab {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+.btn:active, .task-btn:active, .ghost:active,
+.copy-btn:active, .nav button:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
     
   </style>
 </head>
@@ -1175,10 +1184,12 @@ document.getElementById('wFee').textContent = wInitFee.toFixed(4);
     document.getElementById('btnWithdrawIncome').addEventListener('click', () => switchTab('withdraw'));
 
     // ======== Collect (min 0.1 TON) ========
-    document.getElementById('btnCollect').addEventListener('click', async () => {
+    document.getElementById('btnCollect').addEventListener('click', async (e) => {
       const currentMined = parseFloat(document.getElementById('acc').textContent) || 0;
       if (currentMined < 0.1) return showToast('❌ Minimum collect is 0.1 TON');
+      e.currentTarget.disabled = true;
       const data = await apiPost('/api/claim');
+      e.currentTarget.disabled = false;
       if (data.ok) {
         USER.balance = data.balance;
         USER.last_claim = Date.now();
@@ -1186,7 +1197,7 @@ document.getElementById('wFee').textContent = wInitFee.toFixed(4);
         document.getElementById('acc').textContent = '0.00000000';
         showToast('✅ Collected: ' + data.claimed.toFixed(4) + ' TON');
       } else {
-        const errMap = { 'min_collect_0.1': 'Minimum 0.1 TON to collect' };
+        const errMap = { 'min_collect_0.1': 'Minimum 0.1 TON to collect', 'rate_limited': 'Please wait a moment' };
         showToast('❌ ' + (errMap[data.error] || data.error));
       }
     });
@@ -1293,12 +1304,14 @@ await loadDepositHistory();
       document.getElementById('reGain').textContent = (val * 0.10).toFixed(4);
     });
 
-    document.getElementById('btnReinvest').addEventListener('click', async () => {
+    document.getElementById('btnReinvest').addEventListener('click', async (e) => {
       const amount = parseFloat(document.getElementById('reInput').value);
       if (!amount || amount < 0.1) return showToast('❌ Minimum reinvest is 0.1 TON');
       if (amount > USER.balance) return showToast('❌ Insufficient balance');
 
+      e.currentTarget.disabled = true;
       const data = await apiPost('/api/reinvest', { amount });
+      e.currentTarget.disabled = false;
       if (data.ok) {
         USER.balance = data.balance;
         USER.deposit_amount = data.deposit_amount;
@@ -1313,6 +1326,7 @@ await loadDepositHistory();
         const errMap = {
           'min_reinvest_0.1': 'Minimum reinvest is 0.1 TON',
           'insufficient_balance': 'Insufficient balance',
+          'rate_limited': 'Please wait a moment',
         };
         showToast('❌ ' + (errMap[data.error] || data.error));
       }
@@ -1326,14 +1340,16 @@ await loadDepositHistory();
       document.getElementById('wFee').textContent = totalFee.toFixed(4);
     });
 
-    document.getElementById('btnWithdraw').addEventListener('click', async () => {
+    document.getElementById('btnWithdraw').addEventListener('click', async (e) => {
       const amount  = parseFloat(document.getElementById('wAmount').value);
       const address = document.getElementById('wAddr').value.trim();
       const memo    = document.getElementById('wMemo').value.trim();
       if (!address) return showToast('❌ Enter wallet address');
       if (!amount || amount < 0.2) return showToast('❌ Minimum withdrawal is 0.2 TON');
       if (amount > (USER.balance || 0)) return showToast('❌ Insufficient balance');
+      e.currentTarget.disabled = true;
       const data = await apiPost('/api/withdraw', { amount, address, memo });
+      e.currentTarget.disabled = false;
       if (data.ok) {
       USER.balance = (USER.balance || 0) - amount;
       document.getElementById('balance').textContent = USER.balance.toFixed(4);
@@ -1345,16 +1361,19 @@ await loadDepositHistory();
           'insufficient_balance': 'Insufficient balance',
           'invalid_input':        'Invalid input or amount below minimum',
           'amount_too_small':     'Amount too small after fees',
+          'rate_limited':         'Please wait before withdrawing again',
         };
         showToast('❌ ' + (errMap[data.error] || data.error));
       }
     });
 
 // ======== Promo Code ========
-    document.getElementById('btnPromo').addEventListener('click', async () => {
+    document.getElementById('btnPromo').addEventListener('click', async (e) => {
       const code = document.getElementById('promo').value.trim();
       if (!code) return showToast('❌ Enter a promo code');
+      e.currentTarget.disabled = true;
       const data = await apiPost('/api/promo/apply', { code });
+      e.currentTarget.disabled = false;
       if (data.ok) {
         USER.balance = (USER.balance || 0) + (data.reward || 0);
         document.getElementById('balance').textContent = USER.balance.toFixed(4);
@@ -1365,6 +1384,7 @@ await loadDepositHistory();
           'invalid_code':   'Invalid or expired code',
           'already_used':   'You already used this code',
           'code_exhausted': 'This code has been fully used',
+          'rate_limited':   'Please wait a moment',
         };
         showToast('❌ ' + (errMap[data.error] || data.error));
       }
@@ -1454,6 +1474,7 @@ await loadDepositHistory();
         const errMap = {
           'already_done_today': 'Already done today',
           'deposit_required':   'Deposit 0.1 TON first',
+          'rate_limited':       'Please wait a moment',
         };
         showToast('❌ ' + (errMap[data.error] || data.error));
         if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">Claim</button>`;
@@ -1542,6 +1563,7 @@ await loadDepositHistory();
           'already_done': 'Already completed',
           'task_full':    'Task is full',
           'own_task':     'Cannot complete your own task',
+          'rate_limited': 'Please wait a moment',
         };
         showToast('❌ ' + (errMap[data.error] || data.error));
         if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimPartnerTask(${taskId})">Claim</button>`;
@@ -1562,7 +1584,7 @@ await loadDepositHistory();
       document.getElementById('atCost').textContent = ((parseFloat(this.value) || 0) / 500).toFixed(4);
     });
 
-    document.getElementById('btnSubmitTask').addEventListener('click', async () => {
+    document.getElementById('btnSubmitTask').addEventListener('click', async (e) => {
       const title  = document.getElementById('atTitle').value.trim();
       const url    = document.getElementById('atLink').value.trim();
       const clicks = parseInt(document.getElementById('atClicks').value) || 0;
@@ -1570,7 +1592,9 @@ await loadDepositHistory();
       if (clicks < 250) return showToast('❌ Minimum 250 clicks');
       const cost = clicks / 500;
       if (cost > (USER.balance || 0)) return showToast('❌ Insufficient balance');
+      e.currentTarget.disabled = true;
       const data = await apiPost('/api/partner-tasks/add', { title, url, clicks });
+      e.currentTarget.disabled = false;
       if (data.ok) {
         document.getElementById('addTaskModal').classList.add('hidden');
         USER.balance = (USER.balance || 0) - (data.cost || 0);
@@ -1588,6 +1612,7 @@ await loadDepositHistory();
           'min_clicks_250':       'Minimum 250 clicks',
           'invalid_url':          'Invalid URL',
           'invalid_input':        'Invalid input',
+          'rate_limited':         'Please wait a moment',
         };
         showToast('❌ ' + (errMap[data.error] || data.error));
       }
