@@ -1187,9 +1187,10 @@ document.getElementById('wFee').textContent = wInitFee.toFixed(4);
     document.getElementById('btnCollect').addEventListener('click', async (e) => {
       const currentMined = parseFloat(document.getElementById('acc').textContent) || 0;
       if (currentMined < 0.1) return showToast('❌ Minimum collect is 0.1 TON');
-      e.currentTarget.disabled = true;
+      const btn = e.currentTarget;
+      btn.disabled = true;
       const data = await apiPost('/api/claim');
-      e.currentTarget.disabled = false;
+      btn.disabled = false;
       if (data.ok) {
         USER.balance = data.balance;
         USER.last_claim = Date.now();
@@ -1309,9 +1310,10 @@ await loadDepositHistory();
       if (!amount || amount < 0.1) return showToast('❌ Minimum reinvest is 0.1 TON');
       if (amount > USER.balance) return showToast('❌ Insufficient balance');
 
-      e.currentTarget.disabled = true;
+      const btn = e.currentTarget;
+      btn.disabled = true;
       const data = await apiPost('/api/reinvest', { amount });
-      e.currentTarget.disabled = false;
+      btn.disabled = false;
       if (data.ok) {
         USER.balance = data.balance;
         USER.deposit_amount = data.deposit_amount;
@@ -1347,9 +1349,10 @@ await loadDepositHistory();
       if (!address) return showToast('❌ Enter wallet address');
       if (!amount || amount < 0.2) return showToast('❌ Minimum withdrawal is 0.2 TON');
       if (amount > (USER.balance || 0)) return showToast('❌ Insufficient balance');
-      e.currentTarget.disabled = true;
+      const btn = e.currentTarget;
+      btn.disabled = true;
       const data = await apiPost('/api/withdraw', { amount, address, memo });
-      e.currentTarget.disabled = false;
+      btn.disabled = false;
       if (data.ok) {
       USER.balance = (USER.balance || 0) - amount;
       document.getElementById('balance').textContent = USER.balance.toFixed(4);
@@ -1371,9 +1374,10 @@ await loadDepositHistory();
     document.getElementById('btnPromo').addEventListener('click', async (e) => {
       const code = document.getElementById('promo').value.trim();
       if (!code) return showToast('❌ Enter a promo code');
-      e.currentTarget.disabled = true;
+      const btn = e.currentTarget;
+      btn.disabled = true;
       const data = await apiPost('/api/promo/apply', { code });
-      e.currentTarget.disabled = false;
+      btn.disabled = false;
       if (data.ok) {
         USER.balance = (USER.balance || 0) + (data.reward || 0);
         document.getElementById('balance').textContent = USER.balance.toFixed(4);
@@ -1592,9 +1596,10 @@ await loadDepositHistory();
       if (clicks < 250) return showToast('❌ Minimum 250 clicks');
       const cost = clicks / 500;
       if (cost > (USER.balance || 0)) return showToast('❌ Insufficient balance');
-      e.currentTarget.disabled = true;
+      const btn = e.currentTarget;
+      btn.disabled = true;
       const data = await apiPost('/api/partner-tasks/add', { title, url, clicks });
-      e.currentTarget.disabled = false;
+      btn.disabled = false;
       if (data.ok) {
         document.getElementById('addTaskModal').classList.add('hidden');
         USER.balance = (USER.balance || 0) - (data.cost || 0);
