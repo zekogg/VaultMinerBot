@@ -200,7 +200,7 @@
       font-size: 22px;
     }
 
-    .task .reward {
+.task .reward, .top-miner .reward {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -910,6 +910,31 @@ function _setCache(key, data) {
 function _invalidate(key) {
   try { localStorage.removeItem('vm_' + key); } catch {}
 }
+
+// ── Cache until next UTC midnight (للبيانات اليومية المشتركة) ──
+function _nextUTCMidnight() {
+  const d = new Date();
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0);
+}
+
+function _getCachedUntil(key) {
+  try {
+    const raw = localStorage.getItem('vm_' + key);
+    if (!raw) return null;
+    const { data, expiresAt } = JSON.parse(raw);
+    if (Date.now() >= expiresAt) {
+      localStorage.removeItem('vm_' + key);
+      return null;
+    }
+    return data;
+  } catch { return null; }
+}
+
+function _setCacheUntil(key, data, expiresAt) {
+  try {
+    localStorage.setItem('vm_' + key, JSON.stringify({ data, expiresAt }));
+  } catch {}
+}
     
 // ======== Profile Circle & Modal ========
     function setupProfilePhoto() {
@@ -1020,6 +1045,41 @@ document.getElementById('wNet').textContent = Math.max(0, wAmt - wInitFee).toFix
 document.getElementById('wFee').textContent = wInitFee.toFixed(4);
     }
 
+// ======== Load Top Miners ========
+async function loadTopMiners() {
+  let data = _getCachedUntil('top_miners');
+  if (!data) {
+    data = await apiGet('/api/top-miners');
+    if (data.miners) _setCacheUntil('top_miners', data, _nextUTCMidnight());
+  }
+  if (!data.miners) return;
+
+  const list = document.getElementById('topList');
+  if (data.miners.length === 0) {
+    list.innerHTML = '<div class="empty">No top miners yet</div>';
+    return;
+  }
+
+  list.innerHTML = data.miners.map(u => {
+    const name  = u.first_name || `User ${u.id}`;
+    const uname = u.username ? '@' + u.username : '';
+    return `
+      <div class="top-miner">
+        <div class="head">
+          ${lbAvatarEl(u)}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(name)}</div>
+            <div class="muted small">${escapeHtml(uname)}</div>
+          </div>
+        </div>
+        <div class="reward">
+          <div class="muted small">Profit in 24 hours</div>
+          <div style="display:flex;align-items:center;gap:6px"><b>${u.profit24.toFixed(4)}</b> <span class="ton-coin"></span></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+    
     // ======== Load Friends ========
     async function loadFriends() {
   let data = _getCached('friends');
@@ -1924,6 +1984,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
     
     // ======== Start ========
     loadUser();
+    loadTopMiners();
   </script>
   
 <script>
