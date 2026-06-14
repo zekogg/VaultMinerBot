@@ -364,8 +364,8 @@ return json({
 if (mined < 0.1) return json({ error: "min_collect_0.1" }, 400);
 const now = Date.now();
 const claimResult = await env.DB.prepare(
-  "UPDATE users SET balance=balance+?, last_claim=? WHERE id=? AND last_claim=?"
-).bind(mined, now, user.id, user.last_claim).run();
+  "UPDATE users SET balance=balance+?, last_claim=?, last_collect_at=? WHERE id=? AND last_claim=?"
+).bind(mined, now, now, user.id, user.last_claim).run();
 
 if (claimResult.meta.changes === 0) 
   return json({ error: "already_claimed" }, 400);
@@ -1114,6 +1114,47 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     my_rank_deposits:  myDepResult.results[0]?.rank ?? 999,
     next_reward:       nextReward,
   });
+}
+
+// ── GET /api/top-miners ──
+if (url.pathname === "/api/top-miners" && request.method === "GET") {
+  const tgUser = await auth(request, env);
+  if (!tgUser) return json({ error: "unauthorized" }, 401);
+
+  const today    = new Date().toISOString().slice(0, 10);
+  const cache    = caches.default;
+  const cacheKey = new Request(`https://cache.vault/top-miners-${today}`);
+
+  const cachedRes = await cache.match(cacheKey);
+  if (cachedRes) {
+    const cached = await cachedRes.json();
+    return json(cached);
+  }
+
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const { results } = await env.DB.prepare(
+    "SELECT id, username, first_name, photo_url, deposit_amount FROM users WHERE last_collect_at >= ? ORDER BY deposit_amount DESC LIMIT 5"
+  ).bind(cutoff).all();
+
+  const miners = results.map(u => ({
+    id: u.id,
+    username: u.username,
+    first_name: u.first_name,
+    photo_url: u.photo_url,
+    profit24: (u.deposit_amount || 0) * 0.10,
+  }));
+
+  const data = { miners };
+
+  const now2 = new Date();
+  const nextMidnight = Date.UTC(now2.getUTCFullYear(), now2.getUTCMonth(), now2.getUTCDate() + 1, 0, 0, 0, 0);
+  const maxAge = Math.max(60, Math.floor((nextMidnight - Date.now()) / 1000));
+
+  await cache.put(cacheKey, new Response(JSON.stringify(data), {
+    headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${maxAge}` }
+  }));
+
+  return json(data);
 }
       
       if (url.pathname.startsWith("/api/")) return json({ error: "not_found" }, 404);
