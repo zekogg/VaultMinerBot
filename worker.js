@@ -146,15 +146,32 @@ async alarm() {
           return;
         }
 
+        // ── قراءة بيانات المستخدم قبل التحديث (للتسوية + referrer_id في استعلام واحد) ──
+        const userRow = await this.env.DB.prepare(
+          "SELECT deposit_amount, last_claim, referrer_id FROM users WHERE id=?"
+        ).bind(userId).first();
+
+        if (!userRow) { continue; }
+
+        const minedOld = computeMined(userRow);
+        const settleNow = Date.now();
+
         try {
-await this.env.DB.batch([
-  this.env.DB.prepare(
-    "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
-  ).bind(amount, userId),
-  this.env.DB.prepare(
-    "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?, ?, ?, 'confirmed', ?, ?)"
-  ).bind(userId, txHash, amount, Date.now(), comment),
-]);
+          const batchRes = await this.env.DB.batch([
+            this.env.DB.prepare(
+              "UPDATE users SET balance=balance+?, deposit_amount=deposit_amount+?, last_claim=? WHERE id=? AND last_claim=?"
+            ).bind(minedOld, amount, settleNow, userId, userRow.last_claim),
+            this.env.DB.prepare(
+              "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?, ?, ?, 'confirmed', ?, ?)"
+            ).bind(userId, txHash, amount, Date.now(), comment),
+          ]);
+
+          // ── fallback: لو last_claim تغيّر بالتوازي (claim حدث في اللحظة نفسها) ──
+          if (batchRes[0].meta.changes === 0) {
+            await this.env.DB.prepare(
+              "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
+            ).bind(amount, userId).run();
+          }
         } catch (e) {
           const errMsg = String(e?.message || e).toLowerCase();
           await this.state.storage.put("lastError", errMsg);
@@ -170,7 +187,6 @@ await this.env.DB.batch([
 
         // منح المُحيل 10% من قيمة الإيداع
         try {
-          const userRow = await this.env.DB.prepare("SELECT referrer_id FROM users WHERE id=?").bind(userId).first();
           if (userRow?.referrer_id) {
             await this.env.DB.prepare("UPDATE users SET referral_rewards=referral_rewards+? WHERE id=?")
               .bind(amount * 0.10, userRow.referrer_id).run();
@@ -446,22 +462,34 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         const { amount } = await request.json();
         const amt = Number(amount);
         if (!amt || amt < 0.1) return json({ error: "min_reinvest_0.1" }, 400);
-        const deductResult = await env.DB.prepare(
-          "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?"
-        ).bind(amt, tgUser.id, amt).run();
+        // ── قراءة بيانات المستخدم لحساب الـ mined القديم قبل التحديث ──
+        const userRow = await env.DB.prepare(
+          "SELECT balance, deposit_amount, last_claim FROM users WHERE id=?"
+        ).bind(tgUser.id).first();
+        if (!userRow) return json({ error: "user_not_found" }, 404);
 
-        if (deductResult.meta.changes === 0)
-          return json({ error: "insufficient_balance" }, 400);
+        const minedOld = computeMined(userRow);
+        const now = Date.now();
+        const netDelta = minedOld - amt; // خصم amt + إضافة mined القديم
+
+        const deductResult = await env.DB.prepare(
+          "UPDATE users SET balance=balance+?, deposit_amount=deposit_amount+?, total_reinvested=COALESCE(total_reinvested,0)+?, last_claim=? WHERE id=? AND balance>=? AND last_claim=?"
+        ).bind(netDelta, amt, amt, now, tgUser.id, amt, userRow.last_claim).run();
+
+        if (deductResult.meta.changes === 0) {
+          // fallback: قد يكون last_claim تغيّر بالتوازي (claim حدث في اللحظة نفسها)
+          const retry = await env.DB.prepare(
+            "UPDATE users SET balance=balance-?, deposit_amount=deposit_amount+?, total_reinvested=COALESCE(total_reinvested,0)+? WHERE id=? AND balance>=?"
+          ).bind(amt, amt, amt, tgUser.id, amt).run();
+
+          if (retry.meta.changes === 0)
+            return json({ error: "insufficient_balance" }, 400);
+        }
 
         const reTxHash = `reinvest_${tgUser.id}_${Date.now()}`;
-        await env.DB.batch([
-          env.DB.prepare(
-            "UPDATE users SET deposit_amount=deposit_amount+?, total_reinvested=COALESCE(total_reinvested,0)+? WHERE id=?"
-          ).bind(amt, amt, tgUser.id),
-          env.DB.prepare(
-            "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?,?,?,'reinvested',?,?)"
-          ).bind(tgUser.id, reTxHash, amt, Date.now(), 'Reinvest'),
-        ]);
+        await env.DB.prepare(
+          "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?,?,?,'reinvested',?,?)"
+        ).bind(tgUser.id, reTxHash, amt, Date.now(), 'Reinvest').run();
 
         const updatedUser = await env.DB.prepare("SELECT balance, deposit_amount FROM users WHERE id=?").bind(tgUser.id).first();
         return json({ ok: true, deposit_amount: updatedUser.deposit_amount, balance: updatedUser.balance });
