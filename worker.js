@@ -788,17 +788,18 @@ return json({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: msg.chat.id,
-              text: "⛏️ Welcome to Vault Miner!
-
-✅ Earn 10% Daily ~ Ton (Gram)
-& Invite Friends and Earn Up to 20% Daily .
-
-💯 Complete Daily Tasks & Partner Task And Earn ~ Extra Ton .",
+              text: "⛏️ Welcome to Vault Miner!\n\n✅ Earn 10% Daily ~ Ton (Gram)\n& Invite Friends & Earn Up to 20% Daily .\n\n💯 Complete Daily Tasks & Partner Task And Earn ~ Extra Ton .",
               reply_markup: {
-                inline_keyboard: [[{
-                  text: "🚀 Open Vault Miner",
-                  web_app: { url: `https://vaultminerbot.thekingwarrior9.workers.dev` }
-                }]]
+                inline_keyboard: [
+                  [{
+                    text: "🚀 Open Vault Miner",
+                    web_app: { url: `https://vaultminerbot.thekingwarrior9.workers.dev` }
+                  }],
+                  [{
+                    text: "Channel 📢",
+                    url: "https://t.me/VaultMinerNews"
+                  }]
+                ]
               }
             })
           });
