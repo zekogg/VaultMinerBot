@@ -788,7 +788,12 @@ return json({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: msg.chat.id,
-              text: "⛏️ Welcome to Vault Miner!",
+              text: "⛏️ Welcome to Vault Miner!
+
+✅ Earn 10% Daily ~ Ton (Gram)
+& Invite Friends and Earn Up to 20% Daily .
+
+💯 Complete Daily Tasks & Partner Task And Earn ~ Extra Ton .",
               reply_markup: {
                 inline_keyboard: [[{
                   text: "🚀 Open Vault Miner",
