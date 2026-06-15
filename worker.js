@@ -1091,15 +1091,37 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     ));
   }
 
-  // My Rank — دائماً fresh، في batch واحد
-  const [myRefResult, myDepResult] = await env.DB.batch([
-    env.DB.prepare(
-      "SELECT COUNT(*)+1 AS rank FROM users WHERE friends_count > COALESCE((SELECT friends_count FROM users WHERE id=?),-1)"
-    ).bind(tgUser.id),
-    env.DB.prepare(
-      "SELECT COUNT(*)+1 AS rank FROM users WHERE deposit_amount > COALESCE((SELECT deposit_amount FROM users WHERE id=?),-1)"
-    ).bind(tgUser.id),
-  ]);
+  // My Rank — كاش لكل مستخدم، متزامن مع نفس نافذة 8h لقوائم leaderboard
+  const RANK_PERIOD_MS = 8 * 60 * 60 * 1000;
+  const period  = Math.floor(Date.now() / RANK_PERIOD_MS);
+  const rankKey = new Request(`https://cache.vault/myrank-${tgUser.id}-${period}`);
+
+  let myRankReferrals, myRankDeposits;
+  const cachedRank = await cache.match(rankKey);
+
+  if (cachedRank) {
+    const cr = await cachedRank.json();
+    myRankReferrals = cr.referrals;
+    myRankDeposits  = cr.deposits;
+  } else {
+    const [myRefResult, myDepResult] = await env.DB.batch([
+      env.DB.prepare(
+        "SELECT COUNT(*)+1 AS rank FROM users WHERE friends_count > COALESCE((SELECT friends_count FROM users WHERE id=?),-1)"
+      ).bind(tgUser.id),
+      env.DB.prepare(
+        "SELECT COUNT(*)+1 AS rank FROM users WHERE deposit_amount > COALESCE((SELECT deposit_amount FROM users WHERE id=?),-1)"
+      ).bind(tgUser.id),
+    ]);
+    myRankReferrals = myRefResult.results[0]?.rank ?? 999;
+    myRankDeposits  = myDepResult.results[0]?.rank ?? 999;
+
+    const periodEnd = (period + 1) * RANK_PERIOD_MS;
+    const maxAge     = Math.max(60, Math.floor((periodEnd - Date.now()) / 1000));
+    await cache.put(rankKey, new Response(
+      JSON.stringify({ referrals: myRankReferrals, deposits: myRankDeposits }),
+      { headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${maxAge}` } }
+    ));
+  }
 
   const PERIOD_MS  = 480 * 60 * 60 * 1000;
   const LB_EPOCH   = 1781049600000;
@@ -1110,8 +1132,8 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
   return json({
     referrals:         refTop.map((u, i) => ({ ...u, rank: i + 1 })),
     deposits:          depTop.map((u, i) => ({ ...u, rank: i + 1 })),
-    my_rank_referrals: myRefResult.results[0]?.rank ?? 999,
-    my_rank_deposits:  myDepResult.results[0]?.rank ?? 999,
+    my_rank_referrals: myRankReferrals,
+    my_rank_deposits:  myRankDeposits,
     next_reward:       nextReward,
   });
 }
