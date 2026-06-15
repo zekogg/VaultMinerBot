@@ -271,7 +271,7 @@ async function getOrCreateUser(env, tgUser, referrerId) {
   let ref = null;
   if (referrerId && Number(referrerId) !== tgUser.id) ref = Number(referrerId);
   await env.DB.prepare(
-    "INSERT INTO users(id,username,first_name,balance,mined,last_claim,deposit_amount,referrer_id,created_at) VALUES(?,?,?,0,0,?,0,?,?)"
+    "INSERT INTO users(id,username,first_name,balance,mined,last_claim,deposit_amount,referrer_id,created_at) VALUES(?,?,?,0,0,?,0.03,?,?)"
   ).bind(tgUser.id, tgUser.username || null, tgUser.first_name || null, now, ref, now).run();
   if (ref) {
     await env.DB.prepare("UPDATE users SET friends_count=friends_count+1 WHERE id=?").bind(ref).run();
