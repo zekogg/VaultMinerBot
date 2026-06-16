@@ -1229,7 +1229,7 @@ async function loadTopMiners() {
       }
       document.getElementById('friendsListCount').textContent = data.friends.length + ' friends';
       content.innerHTML = data.friends.map(f => {
-        const name   = f.username ? '@' + f.username : (f.first_name || 'User ' + f.id);
+        const name   = f.username ? '@' + escapeHtml(f.username) : escapeHtml(f.first_name || 'User ' + f.id);
         const dep    = parseFloat(f.deposit_amount || 0);
         const earned = dep * 0.10;
         const date   = new Date(f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -1900,9 +1900,9 @@ function startLbTimer() {
 }
 
 function lbAvatarEl(u) {
-  const letter  = (u.first_name || 'U')[0].toUpperCase();
+  const letter  = escapeHtml((u.first_name || 'U')[0].toUpperCase());
   const imgHtml = u.photo_url
-    ? `<img src="${u.photo_url}" alt="" onerror="this.remove()">`
+    ? `<img src="${escapeHtml(u.photo_url)}" alt="" onerror="this.remove()">`
     : '';
   return `<div class="lb-avatar"><span>${letter}</span>${imgHtml}</div>`;
 }
@@ -1918,11 +1918,11 @@ function renderLbRow(u, getPrizeFn, valueKey, valueLabel) {
   else if (rank === 2) { badge = '🥈'; rankClass = 'lb-silver'; extra = ' lb-top3'; }
   else if (rank === 3) { badge = '🥉'; rankClass = 'lb-bronze'; extra = ' lb-top3'; }
 
-  const displayName = u.first_name || `User ${u.id}`;
+  const displayName = escapeHtml(u.first_name || `User ${u.id}`);
 const valDisplay  = valueKey === 'deposit_amount'
   ? val.toFixed(2) + ' TON'
   : val + ' ' + valueLabel;
-const subText = u.username ? `@${u.username} · ${valDisplay}` : valDisplay;
+const subText = u.username ? `@${escapeHtml(u.username)} · ${valDisplay}` : valDisplay;
   
   const prizeHTML = prize > 0
     ? `<span class="lb-prize ${rankClass}">${prize}<span class="ton-coin" style="width:15px;height:15px;margin-left:2px"></span></span>`
