@@ -251,6 +251,8 @@ async function verifyInitData(initData, botToken) {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   if (!hash) return null;
+  const authDate = Number(params.get("auth_date") || 0);
+  if (!authDate || (Date.now() / 1000 - authDate) > 86400) return null;
   params.delete("hash");
   const pairs = [];
   for (const [k, v] of params.entries()) pairs.push(`${k}=${v}`);
