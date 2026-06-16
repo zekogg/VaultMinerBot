@@ -550,7 +550,10 @@
 
   <div></div>
 </div>
-      <div class="acc-amount"><span id="acc">0.00000000</span> TON</div>
+      <div class="acc-amount" style="position:relative">
+  <span id="acc">0.00000000</span> TON
+  <span style="position:absolute;right:0;bottom:2px;font-size:10px;color:#5a8def">TON = Gram</span>
+</div>
       <div class="divider"></div>
       <div class="stats">
         <div><div class="l">Profit in 24 hours</div><div class="v"><span id="profit24">0.0000</span> TON</div></div>
@@ -671,7 +674,10 @@
   <section id="page-deposit" class="page hidden">
     <h2>Deposit</h2>
     <div class="card">
-      <div class="label">Deposit amount:</div>
+      <div class="label" style="display:flex;align-items:center;justify-content:space-between">
+  Deposit amount:
+  <span style="font-size:11px;color:#5a8def">TON = Gram</span>
+</div>
       <input class="input" id="depInput" type="number" step="0.0001" value="1" min="0.1">
       <div class="label">The mining speed will increase by:</div>
       <div class="field">+ <b><span id="depGain">0.1000</span></b> TON per day</div>
