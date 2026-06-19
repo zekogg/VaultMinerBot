@@ -220,8 +220,8 @@ async alarm() {
           chat_id: userId,
           text:
             `✅ <b>Deposit Confirmed!</b>\n\n` +
-            `💰 Amount: <b>${amount.toFixed(4)} TON</b>\n` +
-            `📈 Daily earnings: <b>+${(amount * 0.10).toFixed(4)} TON/day</b>\n\n` +
+            `💰 Amount: <b>${amount.toFixed(4)} Gram</b>\n` +
+            `📈 Daily earnings: <b>+${(amount * 0.10).toFixed(4)} Gram/day</b>\n\n` +
             `⛏️ Your mining speed has been updated!`,
           parse_mode: "HTML",
         }),
@@ -534,12 +534,12 @@ const withdrawalId = insertResult.meta.last_row_id;
           `🔴 <b>Withdrawal Request</b>\n\n` +
           `👤 ${displayName}\n` +
           `🆔 <code>${tgUser.id}</code>\n` +
-          `💰 Amount: <b>${amt} TON</b>\n` +
-          `📊 Fee: <b>${totalFee.toFixed(4)} TON</b>\n` +
-          `💵 Net to send: <b>${net.toFixed(4)} TON</b>\n` +
+          `💰 Amount: <b>${amt} Gram</b>\n` +
+          `📊 Fee: <b>${totalFee.toFixed(4)} Gram</b>\n` +
+          `💵 Net to send: <b>${net.toFixed(4)} Gram</b>\n` +
           `📍 Address: <code>${address}</code>\n` +
           `📝 Memo: ${memoText}\n\n` +
-          `👉 @VaultMiningBot ~ Earn 10% Daily Ton`;
+          `👉 @VaultMiningBot ~ Earn 10% Daily Gram`;
         if (env.BOT_TOKEN && env.ADMIN_CHANNEL_ID) {
           try {
             const msgRes = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
@@ -591,7 +591,7 @@ const DAILY_TASKS = [
   { id: 1, title: "Just check in",            icon: "✅", reward: 0.001, type: "checkin", url: null },
   { id: 2, title: "Share with friends",       icon: "👥", reward: 0.001, type: "share",   url: null },
   { id: 3, title: "Check For Updates",        icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
-  { id: 4, title: "Deposit 0.1+ TON Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null },
+  { id: 4, title: "Deposit 0.1+ Gram Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null },
 ];
 
 return json({
@@ -790,7 +790,7 @@ return json({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: msg.chat.id,
-              text: "⛏️ Welcome to Vault Miner!\n\n✅ Earn 10% Daily ~ Ton (Gram)\n& Invite Friends & Earn Up to 20% Daily .\n\n💯 Complete Daily Tasks & Partner Task And Earn ~ Extra Ton .",
+              text: "⛏️ Welcome to Vault Miner!\n\n✅ Earn 10% Daily ~ Gram\n& Invite Friends & Earn Up to 20% Daily .\n\n💯 Complete Daily Tasks & Partner Task And Earn ~ Extra Gram .",
               reply_markup: {
                 inline_keyboard: [
                   [{
@@ -859,13 +859,13 @@ return json({
                     `✅ <b>Withdrawal Approved</b>\n\n` +
                     `👤 ${displayName}\n` +
                     `🆔 <code>${withdrawal.user_id}</code>\n` +
-                    `💰 Amount: <b>${withdrawal.amount} TON</b>\n` +
-                    `📊 Fee: <b>${Number(withdrawal.fee).toFixed(4)} TON</b>\n` +
-                    `💵 Net sent: <b>${Number(withdrawal.net).toFixed(4)} TON</b>\n` +
+                    `💰 Amount: <b>${withdrawal.amount} Gram</b>\n` +
+                    `📊 Fee: <b>${Number(withdrawal.fee).toFixed(4)} Gram</b>\n` +
+                    `💵 Net sent: <b>${Number(withdrawal.net).toFixed(4)} Gram</b>\n` +
                     `📍 Address: <code>${withdrawal.address}</code>\n` +
                     `📝 Memo: ${withdrawal.memo || "Vault Miner"}\n` +
                     `✅ Status: Approved\n\n` +
-                    `👉 @VaultMiningBot ~ Earn 10% Daily Ton`,
+                    `👉 @VaultMiningBot ~ Earn 10% Daily Gram`,
                   parse_mode: "HTML",
                   disable_web_page_preview: true,
                 }),
@@ -879,7 +879,7 @@ return json({
                 chat_id:    withdrawal.user_id,
                 text:
                   `✅ <b>Withdrawal Approved!</b>\n\n` +
-                  `💵 Amount received: <b>${Number(withdrawal.net).toFixed(4)} TON</b>\n` +
+                  `💵 Amount received: <b>${Number(withdrawal.net).toFixed(4)} Gram</b>\n` +
                   `📍 Sent to: <code>${withdrawal.address}</code>`,
                 parse_mode: "HTML",
               }),
@@ -974,13 +974,13 @@ return json({
                       `❌ <b>Withdrawal Rejected</b>\n\n` +
                       `👤 ${displayName}\n` +
                       `🆔 <code>${withdrawal.user_id}</code>\n` +
-                      `💰 Amount: <b>${withdrawal.amount} TON</b>\n` +
-                      `📊 Fee: <b>${Number(withdrawal.fee).toFixed(4)} TON</b>\n` +
-                      `💵 Net: <b>${Number(withdrawal.net).toFixed(4)} TON</b>\n` +
+                      `💰 Amount: <b>${withdrawal.amount} Gram</b>\n` +
+                      `📊 Fee: <b>${Number(withdrawal.fee).toFixed(4)} Gram</b>\n` +
+                      `💵 Net: <b>${Number(withdrawal.net).toFixed(4)} Gram</b>\n` +
                       `📍 Address: <code>${withdrawal.address}</code>\n` +
                       `📝 Memo: ${withdrawal.memo || "Vault Miner"}\n` +
                       `❌ Reason: ${reason}\n\n` +
-                      `👉 @VaultMiningBot ~ Earn 10% Daily Ton`,
+                      `👉 @VaultMiningBot ~ Earn 10% Daily Gram`,
                     parse_mode: "HTML",
                     disable_web_page_preview: true,
                   }),
