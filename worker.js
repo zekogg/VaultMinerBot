@@ -994,7 +994,7 @@ return json({
                   chat_id:    withdrawal.user_id,
                   text:
                     `❌ <b>Withdrawal Rejected</b>\n\n` +
-                    `💰 Amount: <b>${withdrawal.amount} TON</b>\n\n` +
+                    `💰 Amount: <b>${withdrawal.amount} Gram</b>\n\n` +
                     `💡 Your balance has been refunded.`,
                   parse_mode: "HTML",
                 }),
