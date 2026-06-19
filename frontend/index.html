@@ -550,17 +550,16 @@
 
   <div></div>
 </div>
-      <div class="acc-amount" style="position:relative">
-  <span id="acc">0.00000000</span> TON
-  <span style="position:absolute;right:0;bottom:2px;font-size:10px;color:#5a8def">TON = Gram</span>
+<div class="acc-amount">
+  <span id="acc">0.00000000</span> Gram
 </div>
       <div class="divider"></div>
       <div class="stats">
-        <div><div class="l">Profit in 24 hours</div><div class="v"><span id="profit24">0.0000</span> TON</div></div>
+        <div><div class="l">Profit in 24 hours</div><div class="v"><span id="profit24">0.0000</span> Gram</div></div>
         <div class="vline"></div>
         <div><div class="l">Daily rate</div><div class="v"><span id="rate">10</span>%</div></div>
         <div class="vline"></div>
-        <div><div class="l">Deposit amount</div><div class="v"><span id="depAmount">0.00</span> TON</div></div>
+        <div><div class="l">Deposit amount</div><div class="v"><span id="depAmount">0.00</span> Gram</div></div>
       </div>
     </div>
 
@@ -623,7 +622,7 @@
       <div><span id="refAvail">0.0000</span> <span class="ton-coin"></span></div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
         <button id="btnRefClaim" class="btn btn-green" style="width:auto;padding:10px 18px;opacity:0.35;pointer-events:none;transition:opacity 0.2s">Claim</button>
-        <span style="font-size:5px;color:var(--muted)">Min. 1 TON</span>
+        <span style="font-size:5px;color:var(--muted)">Min. 1 Gram</span>
       </div>
     </div>
 
@@ -674,20 +673,17 @@
   <section id="page-deposit" class="page hidden">
     <h2>Deposit</h2>
     <div class="card">
-      <div class="label" style="display:flex;align-items:center;justify-content:space-between">
-  Deposit amount:
-  <span style="font-size:11px;color:#5a8def">TON = Gram</span>
-</div>
+      <div class="label">Deposit amount:</div>
       <input class="input" id="depInput" type="number" step="0.0001" value="1" min="0.1">
       <div class="label">The mining speed will increase by:</div>
-      <div class="field">+ <b><span id="depGain">0.1000</span></b> TON per day</div>
+      <div class="field">+ <b><span id="depGain">0.1000</span></b> Gram per day</div>
       <button class="btn btn-blue" id="btnDeposit" style="margin-top:16px">Deposit</button>
     </div>
 
     <div class="card hidden" id="depInstr">
       <h3>Send your deposit</h3>
       <div class="label">Send exactly:</div>
-      <div class="field"><b><span id="depSend">0</span> TON</b></div>
+      <div class="field"><b><span id="depSend">0</span> Gram</b></div>
       <div class="label">To wallet address:</div>
       <div class="field"><span id="depAddr" style="word-break:break-all"></span></div>
       <button class="ghost" id="btnCopyAddr" style="margin-top:8px">Copy address</button>
@@ -703,7 +699,7 @@
       <div class="label">Reinvestment amount:</div>
       <input class="input" id="reInput" type="number" step="0.0001" value="0.1" min="0">
       <div class="label">The mining speed will increase by:</div>
-      <div class="field">+ <b><span id="reGain">0.0000</span></b> TON per day</div>
+      <div class="field">+ <b><span id="reGain">0.0000</span></b> Gram per day</div>
       <button class="btn btn-blue" id="btnReinvest" style="margin-top:16px">Reinvest</button>
     </div>
 
@@ -722,9 +718,9 @@
       <div class="label">Tag/comment/memo (optional):</div>
       <input class="input" id="wMemo" value="Vault Miner">
       <div class="label">Amount to be received:</div>
-      <div class="field"><b><span id="wNet">0.0000</span></b> TON</div>
+      <div class="field"><b><span id="wNet">0.0000</span></b> Gram</div>
       <button class="btn btn-blue" id="btnWithdraw" style="margin-top:16px">Withdraw</button>
-      <div class="muted small" style="margin-top:10px">Fee ( 10 % + 0.1 TON ): <b><span id="wFee">-</span> TON</b></div>
+      <div class="muted small" style="margin-top:10px">Fee ( 10 % + 0.1 Gram ): <b><span id="wFee">-</span> TON</b></div>
       <div class="muted small">Withdrawal time: <b>~5 minutes - Up To 12h</b></div>
     </div>
 
@@ -794,9 +790,9 @@
       <input id="atTitle" class="input" placeholder="Task title" maxlength="80">
       <div class="label">Link</div>
       <input id="atLink" class="input" placeholder="https://...">
-      <div class="label">Clicks <span class="muted small">(min 250 = 0.5 TON)</span></div>
+      <div class="label">Clicks <span class="muted small">(min 250 = 0.5 Gram)</span></div>
       <input id="atClicks" class="input" type="number" min="250" step="50" value="500">
-      <div class="label">Cost: <b id="atCost">1.0000</b> TON from your balance</div>
+      <div class="label">Cost: <b id="atCost">1.0000</b> Gram from your balance</div>
       <div style="display:flex;gap:10px;margin-top:16px">
         <button class="btn btn-dark" style="flex:1" onclick="document.getElementById('addTaskModal').classList.add('hidden')">Cancel</button>
         <button class="btn btn-blue" style="flex:1" id="btnSubmitTask">Publish</button>
@@ -1016,10 +1012,10 @@ function _setCacheUntil(key, data, expiresAt) {
 
       // Stats
       const dep = USER.deposit_amount || 0;
-      document.getElementById('profDeposit').textContent   = dep.toFixed(4) + ' TON';
-      document.getElementById('profSpeed').textContent     = (dep * 0.10).toFixed(4) + ' TON/day';
-      document.getElementById('profBalance').textContent   = (USER.balance || 0).toFixed(4) + ' TON';
-      document.getElementById('profWithdrawn').textContent = (USER.total_withdrawn || 0).toFixed(4) + ' TON';
+      document.getElementById('profDeposit').textContent   = dep.toFixed(4) + ' Gram';
+      document.getElementById('profSpeed').textContent     = (dep * 0.10).toFixed(4) + ' Gram/day';
+      document.getElementById('profBalance').textContent   = (USER.balance || 0).toFixed(4) + ' Gram';
+      document.getElementById('profWithdrawn').textContent = (USER.total_withdrawn || 0).toFixed(4) + ' Gram';
 
       document.getElementById('profileModal').classList.remove('hidden');
     }
@@ -1179,9 +1175,9 @@ async function loadTopMiners() {
         btn.style.opacity = '0.35';
         btn.style.pointerEvents = 'none';
         _invalidate('friends');
-        showToast('✅ Claimed: +' + parseFloat(data.claimed).toFixed(4) + ' TON');
+        showToast('✅ Claimed: +' + parseFloat(data.claimed).toFixed(4) + ' Gram');
       } else {
-        const errMap = { 'min_1_ton': 'Minimum 1 TON to claim' };
+        const errMap = { 'min_1_ton': 'Minimum 1 Gram to claim' };
         showToast('❌ ' + (errMap[data.error] || data.error));
       }
     });
@@ -1199,7 +1195,7 @@ async function loadTopMiners() {
           btn.style.pointerEvents = 'none';
           _invalidate('friends');
           _invalidate('milestones');
-          showToast('✅ Bonus claimed: +' + data.reward + ' TON');
+          showToast('✅ Bonus claimed: +' + data.reward + ' Gram');
         } else {
           const errMap = {
             'already_claimed': 'Already claimed',
@@ -1246,8 +1242,8 @@ async function loadTopMiners() {
               <div class="muted small">${date}</div>
             </div>
             <div class="row between" style="margin-top:5px">
-              <div class="muted small">Deposit: <b style="color:#fff">${dep.toFixed(4)} TON</b></div>
-              <div class="muted small">Earned: <b style="color:var(--green)">+${earned.toFixed(4)} TON</b></div>
+              <div class="muted small">Deposit: <b style="color:#fff">${dep.toFixed(4)} Gram</b></div>
+              <div class="muted small">Earned: <b style="color:var(--green)">+${earned.toFixed(4)} Gram</b></div>
             </div>
           </div>`;
       }).join('');
@@ -1275,10 +1271,10 @@ async function loadTopMiners() {
     document.getElementById('btnIncreaseSpeed').addEventListener('click', () => switchTab('deposit'));
     document.getElementById('btnWithdrawIncome').addEventListener('click', () => switchTab('withdraw'));
 
-    // ======== Collect (min 0.1 TON) ========
+    // ======== Collect (min 0.1 Gram) ========
     document.getElementById('btnCollect').addEventListener('click', async (e) => {
       const currentMined = parseFloat(document.getElementById('acc').textContent) || 0;
-      if (currentMined < 0.1) return showToast('❌ Minimum collect is 0.1 TON');
+      if (currentMined < 0.1) return showToast('❌ Minimum collect is 0.1 Gram');
       const btn = e.currentTarget;
       btn.disabled = true;
       const data = await apiPost('/api/claim');
@@ -1288,9 +1284,9 @@ async function loadTopMiners() {
         USER.last_claim = Date.now();
         document.getElementById('balance').textContent = data.balance.toFixed(4);
         document.getElementById('acc').textContent = '0.00000000';
-        showToast('✅ Collected: ' + data.claimed.toFixed(4) + ' TON');
+        showToast('✅ Collected: ' + data.claimed.toFixed(4) + ' Gram');
       } else {
-        const errMap = { 'min_collect_0.1': 'Minimum 0.1 TON to collect', 'rate_limited': 'Please wait a moment' };
+        const errMap = { 'min_collect_0.1': 'Minimum 0.1 Gram to collect', 'rate_limited': 'Please wait a moment' };
         showToast('❌ ' + (errMap[data.error] || data.error));
       }
     });
@@ -1303,7 +1299,7 @@ async function loadTopMiners() {
 
     document.getElementById('btnDeposit').addEventListener('click', async () => {
   const val = parseFloat(document.getElementById('depInput').value) || 0;
-  if (val < 0.1) return showToast('❌ Minimum deposit is 0.1 TON');
+  if (val < 0.1) return showToast('❌ Minimum deposit is 0.1 Gram');
   const data = await apiGet('/api/deposit');
       document.getElementById('depAddr').textContent = data.address;
       document.getElementById('depMemo').textContent = data.memo;
@@ -1360,7 +1356,7 @@ document.getElementById('btnCheck').addEventListener('click', async () => {
       if (data.status === 'found') {
         stopPolling();
         document.getElementById('depInstr').classList.add('hidden');
-        showToast('✅ Deposit confirmed: +' + parseFloat(data.amount).toFixed(4) + ' TON');
+        showToast('✅ Deposit confirmed: +' + parseFloat(data.amount).toFixed(4) + ' Gram');
         await loadUser();
 _invalidate('dep_history');
 await loadDepositHistory();
@@ -1375,7 +1371,7 @@ await loadDepositHistory();
 
       if (data.status === 'below_minimum') {
         stopPolling();
-        showToast('❌ Min deposit 0.1 TON — sent: ' + parseFloat(data.amount).toFixed(4) + ' TON');
+        showToast('❌ Min deposit 0.1 Gram — sent: ' + parseFloat(data.amount).toFixed(4) + ' Gram');
         return;
       }
 
@@ -1399,7 +1395,7 @@ await loadDepositHistory();
 
     document.getElementById('btnReinvest').addEventListener('click', async (e) => {
       const amount = parseFloat(document.getElementById('reInput').value);
-      if (!amount || amount < 0.1) return showToast('❌ Minimum reinvest is 0.1 TON');
+      if (!amount || amount < 0.1) return showToast('❌ Minimum reinvest is 0.1 Gram');
       if (amount > USER.balance) return showToast('❌ Insufficient balance');
 
       const btn = e.currentTarget;
@@ -1418,7 +1414,7 @@ await loadDepositHistory();
         showToast('✅ Reinvested successfully!');
       } else {
         const errMap = {
-          'min_reinvest_0.1': 'Minimum reinvest is 0.1 TON',
+          'min_reinvest_0.1': 'Minimum reinvest is 0.1 Gram',
           'insufficient_balance': 'Insufficient balance',
           'rate_limited': 'Please wait a moment',
         };
@@ -1439,7 +1435,7 @@ await loadDepositHistory();
       const address = document.getElementById('wAddr').value.trim();
       const memo    = document.getElementById('wMemo').value.trim();
       if (!address) return showToast('❌ Enter wallet address');
-      if (!amount || amount < 0.2) return showToast('❌ Minimum withdrawal is 0.2 TON');
+      if (!amount || amount < 0.2) return showToast('❌ Minimum withdrawal is 0.2 Gram');
       if (amount > (USER.balance || 0)) return showToast('❌ Insufficient balance');
       const btn = e.currentTarget;
       btn.disabled = true;
@@ -1449,7 +1445,7 @@ await loadDepositHistory();
       USER.balance = (USER.balance || 0) - amount;
       document.getElementById('balance').textContent = USER.balance.toFixed(4);
       _invalidate('with_history');
-      showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' TON');
+      showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' Gram');
       await loadWithdrawHistory();
       } else {
         const errMap = {
@@ -1474,7 +1470,7 @@ await loadDepositHistory();
         USER.balance = (USER.balance || 0) + (data.reward || 0);
         document.getElementById('balance').textContent = USER.balance.toFixed(4);
         document.getElementById('promo').value = '';
-        showToast('✅ Promo applied! +' + data.reward.toFixed(4) + ' TON');
+        showToast('✅ Promo applied! +' + data.reward.toFixed(4) + ' Gram');
       } else {
         const errMap = {
           'invalid_code':   'Invalid or expired code',
@@ -1511,7 +1507,7 @@ await loadDepositHistory();
           <div class="icon">${t.icon}</div>
           <div>
             <div><b>${t.title}</b></div>
-            <div class="muted small">+${t.reward.toFixed(3)} TON reward</div>
+            <div class="muted small">+${t.reward.toFixed(3)} Gram reward</div>
           </div>
         </div>
         <div class="reward">
@@ -1546,7 +1542,7 @@ await loadDepositHistory();
         tg?.openTelegramLink(t.url);
       } else if (t.type === 'share') {
         const link = refLink || `https://t.me/${CONFIG.bot_username || 'VaultMinerBot'}?start=${USER.id}`;
-        tg?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('⛏️ Earn 10% Daily Ton (Gram)')}`);
+        tg?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('⛏️ Earn 10% Daily Gram')}`);
       }
       if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="dailyTaskCheck(${taskId})">Check</button>`;
     }
@@ -1565,11 +1561,11 @@ await loadDepositHistory();
         document.getElementById('balance').textContent = data.balance.toFixed(4);
         if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
         _invalidate('daily_tasks');
-        showToast('✅ +' + data.reward.toFixed(3) + ' TON');
+        showToast('✅ +' + data.reward.toFixed(3) + ' Gram');
       } else {
         const errMap = {
           'already_done_today': 'Already done today',
-          'deposit_required':   'Deposit 0.1 TON first',
+          'deposit_required':   'Deposit 0.1 Gram first',
           'rate_limited':       'Please wait a moment',
         };
         showToast('❌ ' + (errMap[data.error] || data.error));
@@ -1687,7 +1683,7 @@ await loadDepositHistory();
     document.getElementById('balance').textContent = USER.balance.toFixed(4);
     if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
     _invalidate('partner_tasks');
-    showToast('✅ +0.001 TON');
+    showToast('✅ +0.001 Gram');
       } else {
         const errMap = {
           'already_done': 'Already completed',
@@ -1820,7 +1816,7 @@ return `
             <div class="card" style="margin-bottom:10px">
               <div class="row between" style="align-items:center">
                 <div>
-                  <div style="font-size:16px"><b>${parseFloat(w.net).toFixed(4)} TON</b></div>
+                  <div style="font-size:16px"><b>${parseFloat(w.net).toFixed(4)} Gram</b></div>
                   <div class="muted small">${date}</div>
                 </div>
                 <div style="color:${statusColor}">${statusIcon} ${w.status}</div>
@@ -1834,7 +1830,7 @@ return `
     // ======== Friends ========
     document.getElementById('btnInvite').addEventListener('click', () => {
       if (!refLink) return showToast('❌ Load friends first');
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('⛏️ Earn 10% Daily Ton (Gram)')}`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('⛏️ Earn 10% Daily Gram')}`;
       tg?.openTelegramLink(shareUrl);
     });
 
@@ -1926,7 +1922,7 @@ function renderLbRow(u, getPrizeFn, valueKey, valueLabel) {
 
   const displayName = escapeHtml(u.first_name || `User ${u.id}`);
 const valDisplay  = valueKey === 'deposit_amount'
-  ? val.toFixed(2) + ' TON'
+  ? val.toFixed(2) + ' Gram'
   : val + ' ' + valueLabel;
 const subText = u.username ? `@${escapeHtml(u.username)} · ${valDisplay}` : valDisplay;
   
@@ -1953,12 +1949,12 @@ function renderLeaderboard() {
   const myRank     = isRef ? _lbData.my_rank_referrals : _lbData.my_rank_deposits;
   const getPrizeFn = isRef ? getRefPrize : getDepPrize;
   const valueKey   = isRef ? 'friends_count' : 'deposit_amount';
-  const valueLabel = isRef ? 'friends' : 'TON';
+  const valueLabel = isRef ? 'friends' : 'Gram';
 
   const myPrize  = getPrizeFn(myRank);
   const myRankEl = document.getElementById('lbMyRank');
   myRankEl.innerHTML = myRank <= 20
-    ? `Your rank: <b style="color:#fff">#${myRank}</b>${myPrize > 0 ? ` &middot; Prize: <b style="color:var(--green)">${myPrize} TON</b>` : ''}`
+    ? `Your rank: <b style="color:#fff">#${myRank}</b>${myPrize > 0 ? ` &middot; Prize: <b style="color:var(--green)">${myPrize} Gram</b>` : ''}`
     : `Your rank: <b style="color:#fff">#${myRank}</b>`;
 
   const content = document.getElementById('lbContent');
