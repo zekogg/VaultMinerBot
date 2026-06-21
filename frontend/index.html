@@ -518,6 +518,46 @@
   transform: scale(0.96);
   opacity: 0.85;
 }
+
+  .vm-lang-modal{
+    position:fixed; inset:0; z-index:99998;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.55); backdrop-filter:blur(6px);
+  }
+  .vm-lang-box{
+    width:min(300px,75vw);
+    max-height:min(100vh,700px);
+    overflow:auto;
+    background:var(--panel-2,#181820);
+    border:1px solid var(--line,#2a2a33);
+    border-radius:18px;
+    padding:14px;
+    box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  .vm-lang-head{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; margin-bottom:12px;
+  }
+  .vm-lang-head h3{ margin:0; font-size:16px; }
+  .vm-lang-list{ display:flex; flex-direction:column; gap:10px; }
+  .vm-lang-item{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; width:100%;
+    border:1px solid var(--line,#2a2a33);
+    background:var(--panel,#22222b);
+    color:inherit;
+    border-radius:14px;
+    padding:12px 14px;
+    cursor:pointer;
+    font:inherit;
+  }
+  .vm-lang-item.active{ outline:2px solid var(--blue,#5a8def); }
+  .vm-lang-left{ display:flex; align-items:center; gap:12px; min-width:0; }
+  .vm-lang-flag{ font-size:28px; width:34px; text-align:center; flex:0 0 auto; }
+  .vm-lang-name{ font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vm-lang-code{ color:var(--muted,#8a8a93); font-weight:700; }
+  html[dir="rtl"] .vm-lang-left{ flex-direction:row-reverse; }
+  html[dir="rtl"] .vm-lang-item{ direction:rtl; }
     
   </style>
 </head>
@@ -848,21 +888,26 @@
 </div>
   
   <nav class="nav">
-    <button data-tab="mining" class="active">
-      <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"></path></svg>Mining
-    </button>
-    <button data-tab="tasks">
-      <svg class="ic" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"></rect><path d="M9 4v2h6V4"></path></svg>Tasks
-    </button>
-    <button data-tab="friends">
-      <svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"></circle><path d="M2 20c0-3 3-5 7-5s7 2 7 5"></path><path d="M18 8v4M16 10h4"></path></svg>Friends
-    </button>
-    <button data-tab="deposit">
-      <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2"></rect><circle cx="12" cy="13" r="2.5"></circle></svg>Deposit
-    </button>
-    <button data-tab="withdraw">
-      <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"></rect><path d="M3 10h18"></path></svg>Withdraw
-    </button>
+   <button data-tab="mining" class="active">
+  <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"></path></svg>
+  <span class="nav-txt">Mining</span>
+</button>
+<button data-tab="tasks">
+  <svg class="ic" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"></rect><path d="M9 4v2h6V4"></path></svg>
+  <span class="nav-txt">Tasks</span>
+</button>
+<button data-tab="friends">
+  <svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"></circle><path d="M2 20c0-3 3-5 7-5s7 2 7 5"></path><path d="M18 8v4M16 10h4"></path></svg>
+  <span class="nav-txt">Friends</span>
+</button>
+<button data-tab="deposit">
+  <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2"></rect><circle cx="12" cy="13" r="2.5"></circle></svg>
+  <span class="nav-txt">Deposit</span>
+</button>
+<button data-tab="withdraw">
+  <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"></rect><path d="M3 10h18"></path></svg>
+  <span class="nav-txt">Withdraw</span>
+</button>
   </nav>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -2160,6 +2205,590 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
   };
 
   console.log("[REQ-SPY] installed");
+})();
+</script>
+
+<script>
+(() => {
+  const KEY = 'vm_lang';
+
+  const L = {
+    en: {
+      code:'en', flag:'🇬🇧', name:'English', dir:'ltr',
+      ui:'Language',
+      rewards:'Rewards', acc:'Accumulated income', profit24:'Profit in 24 hours', rate:'Daily rate',
+      depAmount:'Deposit amount', collect:'Collect income', speed:'Increase speed', withdrawIncome:'Withdraw income',
+      topMiners:'Top miners', promo:'Promo code', apply:'Apply', promoPh:'Enter the promo code',
+      daily:'Daily tasks', partner:'Partner Tasks', addTask:'+ Add A Task',
+      friends:'Friends', list:'📋 List', inviteText:'Invite your friends and receive 10% of their deposit, as well as bonuses for the number of friends!',
+      inviteFriend:'👤 Invite a friend', copy:'📋 Copy', friendsRewards:'Friends Rewards', claim:'Claim', min1:'Min. 1 Gram',
+      bonuses:'Bonuses for friends', invite:'Invite', deposit:'Deposit', depAmtLbl:'Deposit amount:', depInc:'The mining speed will increase by:',
+      depSendTitle:'Send your deposit', sendExactly:'Send exactly:', toAddr:'To wallet address:', copyAddr:'Copy address', commentReq:'Comment (required):',
+      copyMemo:'Copy comment', check:'Check', afterSend:'After sending, press Check. Confirmation usually arrives in a few minutes.',
+      reinvest:'Reinvest', reinvestAmt:'Reinvestment amount:', depHist:'Deposit History', noDep:'No deposits',
+      withdraw:'Withdrawal of funds', amount:'Amount:', address:'Address (Gram~Ton):', memo:'Tag/comment/memo (optional):',
+      received:'Amount to be received:', fee:'Fee ( 10 % + 0.1 Gram ):', withdrawTime:'Withdrawal time: ~5 minutes - Up To 12h',
+      payHist:'Payment history', noPay:'No payments',
+      reg:'Registered', bal:'Balance', minSpeed:'Mining Speed', totalW:'Total Withdrawn',
+      partnerInfoTitle:'🤝 Partner Tasks', partnerInfoText:'If You Have A Channel or A Project And You Want to Publish Your Task Here Contact The Support',
+      addPartnerTitle:'➕ Add A Partner Task', title:'Title', link:'Link', clicks:'Clicks', cost:'Cost', publish:'Publish', cancel:'Cancel',
+      invitedHeader:'👥 Invited Friends',
+      leaderboard:'Leaderboard', referrals:'👥 Referrals', depositsTab:'💎 Deposits', rewardCredited:'Rewards Credited in', updatesDaily:'Updates daily · 00:00 UTC',
+      yourRank:'Your rank', prize:'Prize', loading:'Loading...', failedLoad:'Failed to load', noData:'No data yet', noTop:'No top miners yet', noFriends:'No friends invited yet',
+      opened:'Open', full:'Full', completed:'✅ Completed',
+      addTaskBtn:'+ Add A Task',
+
+      mining:'Mining',
+      tasksNav:'Tasks',
+      friendsNav:'Friends',
+      depositNav:'Deposit',
+      withdrawNav:'Withdraw',
+
+      toast: {
+        claimed:'✅ Claimed',
+        bonusClaimed:'✅ Bonus claimed',
+        minimum1:'❌ Minimum 1 Gram to claim',
+        minimum01collect:'❌ Minimum collect is 0.1 Gram',
+        collected:'✅ Collected',
+        copiedAddr:'✅ Address copied!',
+        copiedMemo:'✅ Comment copied!',
+        connErr:'❌ Connection error',
+        depositConfirmed:'✅ Deposit confirmed',
+        txProcessed:'⚠️ Transaction already processed',
+        minDepSent:'❌ Min deposit 0.1 Gram',
+        txNotFound:'❌ Transaction not found. Try again.',
+        reinvested:'✅ Reinvested successfully!',
+        enterAddr:'❌ Enter wallet address',
+        minWithdraw:'❌ Minimum withdrawal is 0.2 Gram',
+        insufficient:'❌ Insufficient balance',
+        withdrew:'✅ Withdrawal sent',
+        enterPromo:'❌ Enter a promo code',
+        promoApplied:'✅ Promo applied!',
+        loadFriends:'❌ Load friends first',
+        fillAll:'❌ Fill in all fields',
+        minClicks:'❌ Minimum 250 clicks',
+        minDep:'❌ Minimum deposit is 0.1 Gram',
+        already:'❌ Already claimed',
+        notEnough:'❌ Not enough friends yet',
+        linkCopied:'✅ Link copied!'
+      }
+    },
+
+    ru: {
+      code:'ru', flag:'🇷🇺', name:'Русский', dir:'ltr',
+      ui:'Язык',
+      rewards:'Награды', acc:'Накопленный доход', profit24:'Прибыль за 24 часа', rate:'Дневная ставка',
+      depAmount:'Сумма депозита', collect:'Собрать доход', speed:'Увеличить скорость', withdrawIncome:'Вывести доход',
+      topMiners:'Топ майнеров', promo:'Промокод', apply:'Применить', promoPh:'Введите промокод',
+      daily:'Ежедневные задания', partner:'Партнёрские задания', addTask:'+ Добавить задание',
+      friends:'Друзья', list:'📋 Список', inviteText:'Приглашайте друзей и получайте 10% от их депозита, а также бонусы за количество друзей!',
+      inviteFriend:'👤 Пригласить друга', copy:'📋 Копировать', friendsRewards:'Награды за друзей', claim:'Получить', min1:'Мин. 1 Gram',
+      bonuses:'Бонусы за друзей', invite:'Пригласить', deposit:'Депозит', depAmtLbl:'Сумма депозита:', depInc:'Скорость майнинга увеличится на:',
+      depSendTitle:'Отправьте депозит', sendExactly:'Отправьте ровно:', toAddr:'На адрес кошелька:', copyAddr:'Скопировать адрес', commentReq:'Комментарий (обязательно):',
+      copyMemo:'Скопировать комментарий', check:'Проверить', afterSend:'После отправки нажмите Check. Подтверждение обычно приходит за несколько минут.',
+      reinvest:'Реинвест', reinvestAmt:'Сумма реинвеста:', depHist:'История депозитов', noDep:'Депозитов нет',
+      withdraw:'Вывод средств', amount:'Сумма:', address:'Адрес (Gram~Ton):', memo:'Тег/комментарий/мемо (необязательно):',
+      received:'К получению:', fee:'Комиссия ( 10 % + 0.1 Gram ):', withdrawTime:'Время вывода: ~5 минут - до 12ч',
+      payHist:'История платежей', noPay:'Платежей нет',
+      reg:'Дата регистрации', bal:'Баланс', minSpeed:'Скорость майнинга', totalW:'Всего выведено',
+      partnerInfoTitle:'🤝 Партнёрские задания', partnerInfoText:'Если у вас есть канал или проект и вы хотите опубликовать здесь задание, свяжитесь с поддержкой',
+      addPartnerTitle:'➕ Добавить партнёрское задание', title:'Название', link:'Ссылка', clicks:'Клики', cost:'Стоимость', publish:'Опубликовать', cancel:'Отмена',
+      invitedHeader:'👥 Приглашённые друзья',
+      leaderboard:'Таблица лидеров', referrals:'👥 Рефералы', depositsTab:'💎 Депозиты', rewardCredited:'Награда будет начислена через', updatesDaily:'Обновляется ежедневно · 00:00 UTC',
+      yourRank:'Ваш ранг', prize:'Приз', loading:'Загрузка...', failedLoad:'Не удалось загрузить', noData:'Данных пока нет', noTop:'Пока нет топ-майнеров', noFriends:'Пока нет приглашённых друзей',
+      opened:'Открыть', full:'Полно', completed:'✅ Выполнено',
+      addTaskBtn:'+ Добавить задание',
+
+      mining:'Майнинг',
+      tasksNav:'Задания',
+      friendsNav:'Друзья',
+      depositNav:'Депозит',
+      withdrawNav:'Вывод',
+
+      toast:{ claimed:'✅ Получено', bonusClaimed:'✅ Бонус получен', minimum1:'❌ Минимум 1 Gram для получения', minimum01collect:'❌ Минимум для сбора: 0.1 Gram', collected:'✅ Собрано', copiedAddr:'✅ Адрес скопирован!', copiedMemo:'✅ Комментарий скопирован!', connErr:'❌ Ошибка соединения', depositConfirmed:'✅ Депозит подтверждён', txProcessed:'⚠️ Транзакция уже обработана', minDepSent:'❌ Мин. депозит 0.1 Gram', txNotFound:'❌ Транзакция не найдена. Попробуйте ещё раз.', reinvested:'✅ Реинвест выполнен!', enterAddr:'❌ Введите адрес кошелька', minWithdraw:'❌ Минимальный вывод 0.2 Gram', insufficient:'❌ Недостаточно баланса', withdrew:'✅ Вывод отправлен', enterPromo:'❌ Введите промокод', promoApplied:'✅ Промокод применён!', loadFriends:'❌ Сначала загрузите друзей', fillAll:'❌ Заполните все поля', minClicks:'❌ Минимум 250 кликов', minDep:'❌ Минимальный депозит 0.1 Gram', already:'❌ Уже получено', notEnough:'❌ Недостаточно друзей', linkCopied:'✅ Ссылка скопирована!' }
+    },
+
+    br: {
+      code:'br', flag:'🇧🇷', name:'Português', dir:'ltr',
+      ui:'Idioma',
+      rewards:'Recompensas', acc:'Renda acumulada', profit24:'Lucro em 24 horas', rate:'Taxa diária',
+      depAmount:'Valor do depósito', collect:'Coletar renda', speed:'Aumentar velocidade', withdrawIncome:'Sacar renda',
+      topMiners:'Top miners', promo:'Código promocional', apply:'Aplicar', promoPh:'Digite o código promocional',
+      daily:'Tarefas diárias', partner:'Tarefas de parceiros', addTask:'+ Adicionar tarefa',
+      friends:'Amigos', list:'📋 Lista', inviteText:'Convide seus amigos e receba 10% do depósito deles, além de bônus pela quantidade de amigos!',
+      inviteFriend:'👤 Convidar um amigo', copy:'📋 Copiar', friendsRewards:'Recompensas dos amigos', claim:'Resgatar', min1:'Mín. 1 Gram',
+      bonuses:'Bônus para amigos', invite:'Convide', deposit:'Depósito', depAmtLbl:'Valor do depósito:', depInc:'A velocidade de mineração aumentará em:',
+      depSendTitle:'Envie seu depósito', sendExactly:'Envie exatamente:', toAddr:'Para o endereço da carteira:', copyAddr:'Copiar endereço', commentReq:'Comentário (obrigatório):',
+      copyMemo:'Copiar comentário', check:'Verificar', afterSend:'Depois de enviar, pressione Check. A confirmação normalmente chega em alguns minutos.',
+      reinvest:'Reinvestir', reinvestAmt:'Valor do reinvestimento:', depHist:'Histórico de depósitos', noDep:'Sem depósitos',
+      withdraw:'Saque de fundos', amount:'Valor:', address:'Endereço (Gram~Ton):', memo:'Tag/comentário/memo (opcional):',
+      received:'Valor a receber:', fee:'Taxa ( 10 % + 0.1 Gram ):', withdrawTime:'Tempo de saque: ~5 minutos - até 12h',
+      payHist:'Histórico de pagamentos', noPay:'Sem pagamentos',
+      reg:'Registrado', bal:'Saldo', minSpeed:'Velocidade de mineração', totalW:'Total sacado',
+      partnerInfoTitle:'🤝 Tarefas de parceiros', partnerInfoText:'Se você tem um canal ou projeto e quer publicar sua tarefa aqui, entre em contato com o suporte',
+      addPartnerTitle:'➕ Adicionar tarefa de parceiro', title:'Título', link:'Link', clicks:'Cliques', cost:'Custo', publish:'Publicar', cancel:'Cancelar',
+      invitedHeader:'👥 Amigos convidados',
+      leaderboard:'Ranking', referrals:'👥 Indicações', depositsTab:'💎 Depósitos', rewardCredited:'Recompensas serão creditadas em', updatesDaily:'Atualizado diariamente · 00:00 UTC',
+      yourRank:'Seu ranking', prize:'Prêmio', loading:'Carregando...', failedLoad:'Falha ao carregar', noData:'Sem dados ainda', noTop:'Ainda sem top miners', noFriends:'Ainda sem amigos convidados',
+      opened:'Abrir', full:'Cheio', completed:'✅ Concluído',
+      addTaskBtn:'+ Adicionar tarefa',
+
+      mining:'Mineração',
+      tasksNav:'Tarefas',
+      friendsNav:'Amigos',
+      depositNav:'Depósito',
+      withdrawNav:'Saque',
+
+      toast:{ claimed:'✅ Resgatado', bonusClaimed:'✅ Bônus resgatado', minimum1:'❌ Mínimo de 1 Gram para resgatar', minimum01collect:'❌ Mínimo para coletar: 0.1 Gram', collected:'✅ Coletado', copiedAddr:'✅ Endereço copiado!', copiedMemo:'✅ Comentário copiado!', connErr:'❌ Erro de conexão', depositConfirmed:'✅ Depósito confirmado', txProcessed:'⚠️ Transação já processada', minDepSent:'❌ Depósito mínimo 0.1 Gram', txNotFound:'❌ Transação não encontrada. Tente novamente.', reinvested:'✅ Reinvestido com sucesso!', enterAddr:'❌ Digite o endereço da carteira', minWithdraw:'❌ Saque mínimo 0.2 Gram', insufficient:'❌ Saldo insuficiente', withdrew:'✅ Saque enviado', enterPromo:'❌ Digite um código promocional', promoApplied:'✅ Promo aplicado!', loadFriends:'❌ Carregue os amigos primeiro', fillAll:'❌ Preencha todos os campos', minClicks:'❌ Mínimo de 250 cliques', minDep:'❌ Depósito mínimo 0.1 Gram', already:'❌ Já resgatado', notEnough:'❌ Ainda não há amigos suficientes', linkCopied:'✅ Link copiado!' }
+    },
+
+    es: {
+      code:'es', flag:'🇪🇸', name:'Español', dir:'ltr',
+      ui:'Idioma',
+      rewards:'Recompensas', acc:'Ingreso acumulado', profit24:'Ganancia en 24 horas', rate:'Tasa diaria',
+      depAmount:'Monto del depósito', collect:'Cobrar ingresos', speed:'Aumentar velocidad', withdrawIncome:'Retirar ingresos',
+      topMiners:'Top miners', promo:'Código promocional', apply:'Aplicar', promoPh:'Introduce el código promocional',
+      daily:'Tareas diarias', partner:'Tareas de socios', addTask:'+ Añadir tarea',
+      friends:'Amigos', list:'📋 Lista', inviteText:'Invita a tus amigos y recibe el 10% de su depósito, además de bonos por la cantidad de amigos!',
+      inviteFriend:'👤 Invitar a un amigo', copy:'📋 Copiar', friendsRewards:'Recompensas de amigos', claim:'Reclamar', min1:'Mín. 1 Gram',
+      bonuses:'Bonos para amigos', invite:'Invitar', deposit:'Depósito', depAmtLbl:'Monto del depósito:', depInc:'La velocidad de minería aumentará en:',
+      depSendTitle:'Envía tu depósito', sendExactly:'Envía exactamente:', toAddr:'A la dirección de la billetera:', copyAddr:'Copiar dirección', commentReq:'Comentario (obligatorio):',
+      copyMemo:'Copiar comentario', check:'Comprobar', afterSend:'Después de enviar, pulsa Check. La confirmación suele llegar en unos minutos.',
+      reinvest:'Reinvertir', reinvestAmt:'Monto de reinversión:', depHist:'Historial de depósitos', noDep:'Sin depósitos',
+      withdraw:'Retiro de fondos', amount:'Monto:', address:'Dirección (Gram~Ton):', memo:'Tag/comentario/memo (opcional):',
+      received:'Monto a recibir:', fee:'Comisión ( 10 % + 0.1 Gram ):', withdrawTime:'Tiempo de retiro: ~5 minutos - hasta 12h',
+      payHist:'Historial de pagos', noPay:'Sin pagos',
+      reg:'Registrado', bal:'Saldo', minSpeed:'Velocidad de minería', totalW:'Total retirado',
+      partnerInfoTitle:'🤝 Tareas de socios', partnerInfoText:'Si tienes un canal o proyecto y quieres publicar tu tarea aquí, contacta con soporte',
+      addPartnerTitle:'➕ Añadir tarea de socio', title:'Título', link:'Enlace', clicks:'Clics', cost:'Costo', publish:'Publicar', cancel:'Cancelar',
+      invitedHeader:'👥 Amigos invitados',
+      leaderboard:'Clasificación', referrals:'👥 Referidos', depositsTab:'💎 Depósitos', rewardCredited:'Las recompensas se acreditarán en', updatesDaily:'Se actualiza diariamente · 00:00 UTC',
+      yourRank:'Tu rango', prize:'Premio', loading:'Cargando...', failedLoad:'No se pudo cargar', noData:'Aún no hay datos', noTop:'Aún no hay top miners', noFriends:'Aún no hay amigos invitados',
+      opened:'Abrir', full:'Lleno', completed:'✅ Completado',
+      addTaskBtn:'+ Añadir tarea',
+
+      mining:'Minería',
+      tasksNav:'Tareas',
+      friendsNav:'Amigos',
+      depositNav:'Depósito',
+      withdrawNav:'Retiro',
+
+      toast:{ claimed:'✅ Reclamado', bonusClaimed:'✅ Bono reclamado', minimum1:'❌ Mínimo 1 Gram para reclamar', minimum01collect:'❌ Mínimo para cobrar: 0.1 Gram', collected:'✅ Cobrado', copiedAddr:'✅ Dirección copiada!', copiedMemo:'✅ Comentario copiado!', connErr:'❌ Error de conexión', depositConfirmed:'✅ Depósito confirmado', txProcessed:'⚠️ Transacción ya procesada', minDepSent:'❌ Depósito mínimo 0.1 Gram', txNotFound:'❌ Transacción no encontrada. Inténtalo de nuevo.', reinvested:'✅ Reinvertido con éxito!', enterAddr:'❌ Introduce la dirección de la billetera', minWithdraw:'❌ Retiro mínimo 0.2 Gram', insufficient:'❌ Saldo insuficiente', withdrew:'✅ Retiro enviado', enterPromo:'❌ Introduce un código promocional', promoApplied:'✅ ¡Promo aplicada!', loadFriends:'❌ Carga primero los amigos', fillAll:'❌ Completa todos los campos', minClicks:'❌ Mínimo 250 clics', minDep:'❌ Depósito mínimo 0.1 Gram', already:'❌ Ya reclamado', notEnough:'❌ Todavía no hay suficientes amigos', linkCopied:'✅ Enlace copiado!' }
+    },
+
+    tr: {
+      code:'tr', flag:'🇹🇷', name:'Türkçe', dir:'ltr',
+      ui:'Dil',
+      rewards:'Ödüller', acc:'Biriken gelir', profit24:'24 saatlik kazanç', rate:'Günlük oran',
+      depAmount:'Yatırım miktarı', collect:'Geliri topla', speed:'Hızı artır', withdrawIncome:'Geliri çek',
+      topMiners:'Top miners', promo:'Promosyon kodu', apply:'Uygula', promoPh:'Promosyon kodunu girin',
+      daily:'Günlük görevler', partner:'Ortak görevler', addTask:'+ Görev ekle',
+      friends:'Arkadaşlar', list:'📋 Liste', inviteText:'Arkadaşlarını davet et ve yatırımlarının %10’unu, ayrıca arkadaş sayısına göre bonusları kazan!',
+      inviteFriend:'👤 Arkadaş davet et', copy:'📋 Kopyala', friendsRewards:'Arkadaş ödülleri', claim:'Talep et', min1:'Min. 1 Gram',
+      bonuses:'Arkadaş bonusları', invite:'Davet et', deposit:'Yatır', depAmtLbl:'Yatırım miktarı:', depInc:'Madencilik hızı şu kadar artacak:',
+      depSendTitle:'Yatırımını gönder', sendExactly:'Tam olarak gönder:', toAddr:'Cüzdan adresine:', copyAddr:'Adresi kopyala', commentReq:'Yorum (zorunlu):',
+      copyMemo:'Yorumu kopyala', check:'Kontrol et', afterSend:'Gönderdikten sonra Check’e basın. Onay genelde birkaç dakika içinde gelir.',
+      reinvest:'Yeniden yatırım', reinvestAmt:'Yeniden yatırım miktarı:', depHist:'Yatırım geçmişi', noDep:'Yatırım yok',
+      withdraw:'Para çekme', amount:'Miktar:', address:'Adres (Gram~Ton):', memo:'Etiket/yorum/memo (isteğe bağlı):',
+      received:'Alınacak miktar:', fee:'Ücret ( 10 % + 0.1 Gram ):', withdrawTime:'Çekim süresi: ~5 dakika - 12 saate kadar',
+      payHist:'Ödeme geçmişi', noPay:'Ödeme yok',
+      reg:'Kayıt tarihi', bal:'Bakiye', minSpeed:'Madencilik hızı', totalW:'Toplam çekilen',
+      partnerInfoTitle:'🤝 Ortak görevler', partnerInfoText:'Bir kanalınız veya projeniz varsa ve görevinizi burada yayınlamak istiyorsanız destek ile iletişime geçin',
+      addPartnerTitle:'➕ Ortak görev ekle', title:'Başlık', link:'Bağlantı', clicks:'Tıklama', cost:'Maliyet', publish:'Yayınla', cancel:'İptal',
+      invitedHeader:'👥 Davet edilen arkadaşlar',
+      leaderboard:'Liderlik tablosu', referrals:'👥 Referanslar', depositsTab:'💎 Yatırımlar', rewardCredited:'Ödüller şu sürede kredilendirilecek', updatesDaily:'Günlük güncellenir · 00:00 UTC',
+      yourRank:'Sıralaman', prize:'Ödül', loading:'Yükleniyor...', failedLoad:'Yüklenemedi', noData:'Henüz veri yok', noTop:'Henüz top miner yok', noFriends:'Henüz davet edilen arkadaş yok',
+      opened:'Aç', full:'Dolu', completed:'✅ Tamamlandı',
+      addTaskBtn:'+ Görev ekle',
+
+      mining:'Madencilik',
+      tasksNav:'Görevler',
+      friendsNav:'Arkadaşlar',
+      depositNav:'Yatır',
+      withdrawNav:'Çekim',
+
+      toast:{ claimed:'✅ Talep edildi', bonusClaimed:'✅ Bonus talep edildi', minimum1:'❌ Talep için en az 1 Gram', minimum01collect:'❌ Toplama için minimum 0.1 Gram', collected:'✅ Toplandı', copiedAddr:'✅ Adres kopyalandı!', copiedMemo:'✅ Yorum kopyalandı!', connErr:'❌ Bağlantı hatası', depositConfirmed:'✅ Yatırım onaylandı', txProcessed:'⚠️ İşlem zaten işlendi', minDepSent:'❌ Min yatırım 0.1 Gram', txNotFound:'❌ İşlem bulunamadı. Tekrar deneyin.', reinvested:'✅ Yeniden yatırım başarılı!', enterAddr:'❌ Cüzdan adresini girin', minWithdraw:'❌ Minimum çekim 0.2 Gram', insufficient:'❌ Yetersiz bakiye', withdrew:'✅ Çekim gönderildi', enterPromo:'❌ Promosyon kodu girin', promoApplied:'✅ Promo uygulandı!', loadFriends:'❌ Önce arkadaşları yükleyin', fillAll:'❌ Tüm alanları doldurun', minClicks:'❌ Minimum 250 tıklama', minDep:'❌ Minimum yatırım 0.1 Gram', already:'❌ Zaten talep edildi', notEnough:'❌ Henüz yeterli arkadaş yok', linkCopied:'✅ Bağlantı kopyalandı!' }
+    },
+
+    vi: {
+      code:'vi', flag:'🇻🇳', name:'Tiếng Việt', dir:'ltr',
+      ui:'Ngôn ngữ',
+      rewards:'Phần thưởng', acc:'Thu nhập tích lũy', profit24:'Lợi nhuận 24 giờ', rate:'Tỷ lệ hàng ngày',
+      depAmount:'Số tiền nạp', collect:'Thu nhập', speed:'Tăng tốc độ', withdrawIncome:'Rút thu nhập',
+      topMiners:'Top miners', promo:'Mã khuyến mãi', apply:'Áp dụng', promoPh:'Nhập mã khuyến mãi',
+      daily:'Nhiệm vụ hằng ngày', partner:'Nhiệm vụ đối tác', addTask:'+ Thêm nhiệm vụ',
+      friends:'Bạn bè', list:'📋 Danh sách', inviteText:'Mời bạn bè và nhận 10% tiền nạp của họ, cùng với tiền thưởng theo số lượng bạn bè!',
+      inviteFriend:'👤 Mời bạn bè', copy:'📋 Sao chép', friendsRewards:'Thưởng bạn bè', claim:'Nhận', min1:'Tối thiểu 1 Gram',
+      bonuses:'Thưởng cho bạn bè', invite:'Mời', deposit:'Nạp tiền', depAmtLbl:'Số tiền nạp:', depInc:'Tốc độ đào sẽ tăng:',
+      depSendTitle:'Gửi tiền nạp của bạn', sendExactly:'Gửi chính xác:', toAddr:'Tới địa chỉ ví:', copyAddr:'Sao chép địa chỉ', commentReq:'Bình luận (bắt buộc):',
+      copyMemo:'Sao chép bình luận', check:'Kiểm tra', afterSend:'Sau khi gửi, nhấn Check. Xác nhận thường đến trong vài phút.',
+      reinvest:'Tái đầu tư', reinvestAmt:'Số tiền tái đầu tư:', depHist:'Lịch sử nạp', noDep:'Không có khoản nạp',
+      withdraw:'Rút tiền', amount:'Số tiền:', address:'Địa chỉ (Gram~Ton):', memo:'Tag/bình luận/memo (tùy chọn):',
+      received:'Số tiền nhận:', fee:'Phí ( 10 % + 0.1 Gram ):', withdrawTime:'Thời gian rút: ~5 phút - tối đa 12h',
+      payHist:'Lịch sử thanh toán', noPay:'Không có thanh toán',
+      reg:'Đã đăng ký', bal:'Số dư', minSpeed:'Tốc độ đào', totalW:'Tổng đã rút',
+      partnerInfoTitle:'🤝 Nhiệm vụ đối tác', partnerInfoText:'Nếu bạn có kênh hoặc dự án và muốn đăng nhiệm vụ ở đây, hãy liên hệ hỗ trợ',
+      addPartnerTitle:'➕ Thêm nhiệm vụ đối tác', title:'Tiêu đề', link:'Liên kết', clicks:'Lượt nhấp', cost:'Chi phí', publish:'Đăng', cancel:'Hủy',
+      invitedHeader:'👥 Bạn bè đã mời',
+      leaderboard:'Bảng xếp hạng', referrals:'👥 Giới thiệu', depositsTab:'💎 Nạp tiền', rewardCredited:'Phần thưởng sẽ được cộng trong', updatesDaily:'Cập nhật hằng ngày · 00:00 UTC',
+      yourRank:'Xếp hạng của bạn', prize:'Giải thưởng', loading:'Đang tải...', failedLoad:'Tải thất bại', noData:'Chưa có dữ liệu', noTop:'Chưa có top miners', noFriends:'Chưa có bạn bè được mời',
+      opened:'Mở', full:'Đầy', completed:'✅ Hoàn thành',
+      addTaskBtn:'+ Thêm nhiệm vụ',
+
+      mining:'Đào',
+      tasksNav:'Nhiệm vụ',
+      friendsNav:'Bạn bè',
+      depositNav:'Nạp',
+      withdrawNav:'Rút',
+
+      toast:{ claimed:'✅ Đã nhận', bonusClaimed:'✅ Đã nhận thưởng', minimum1:'❌ Tối thiểu 1 Gram để nhận', minimum01collect:'❌ Tối thiểu để thu: 0.1 Gram', collected:'✅ Đã thu', copiedAddr:'✅ Đã sao chép địa chỉ!', copiedMemo:'✅ Đã sao chép bình luận!', connErr:'❌ Lỗi kết nối', depositConfirmed:'✅ Đã xác nhận nạp', txProcessed:'⚠️ Giao dịch đã được xử lý', minDepSent:'❌ Nạp tối thiểu 0.1 Gram', txNotFound:'❌ Không tìm thấy giao dịch. Thử lại.', reinvested:'✅ Tái đầu tư thành công!', enterAddr:'❌ Nhập địa chỉ ví', minWithdraw:'❌ Rút tối thiểu 0.2 Gram', insufficient:'❌ Không đủ số dư', withdrew:'✅ Đã gửi lệnh rút', enterPromo:'❌ Nhập mã khuyến mãi', promoApplied:'✅ Đã áp dụng mã!', loadFriends:'❌ Hãy tải danh sách bạn bè trước', fillAll:'❌ Điền đầy đủ các trường', minClicks:'❌ Tối thiểu 250 lượt nhấp', minDep:'❌ Nạp tối thiểu 0.1 Gram', already:'❌ Đã nhận rồi', notEnough:'❌ Chưa đủ bạn bè', linkCopied:'✅ Đã sao chép liên kết!' }
+    },
+
+    uk: {
+      code:'uk', flag:'🇺🇦', name:'Українська', dir:'ltr',
+      ui:'Мова',
+      rewards:'Нагороди', acc:'Накопичений дохід', profit24:'Прибуток за 24 години', rate:'Добова ставка',
+      depAmount:'Сума депозиту', collect:'Зібрати дохід', speed:'Підвищити швидкість', withdrawIncome:'Вивести дохід',
+      topMiners:'Top miners', promo:'Промокод', apply:'Застосувати', promoPh:'Введіть промокод',
+      daily:'Щоденні завдання', partner:'Партнерські завдання', addTask:'+ Додати завдання',
+      friends:'Друзі', list:'📋 Список', inviteText:'Запрошуйте друзів і отримуйте 10% від їхнього депозиту, а також бонуси за кількість друзів!',
+      inviteFriend:'👤 Запросити друга', copy:'📋 Копіювати', friendsRewards:'Нагороди за друзів', claim:'Отримати', min1:'Мін. 1 Gram',
+      bonuses:'Бонуси за друзів', invite:'Запросити', deposit:'Депозит', depAmtLbl:'Сума депозиту:', depInc:'Швидкість майнінгу збільшиться на:',
+      depSendTitle:'Надішліть депозит', sendExactly:'Надішліть точно:', toAddr:'На адресу гаманця:', copyAddr:'Копіювати адресу', commentReq:'Коментар (обов’язково):',
+      copyMemo:'Копіювати коментар', check:'Перевірити', afterSend:'Після надсилання натисніть Check. Підтвердження зазвичай надходить за кілька хвилин.',
+      reinvest:'Реінвест', reinvestAmt:'Сума реінвесту:', depHist:'Історія депозитів', noDep:'Депозитів немає',
+      withdraw:'Виведення коштів', amount:'Сума:', address:'Адреса (Gram~Ton):', memo:'Тег/коментар/мемо (необов’язково):',
+      received:'Сума до отримання:', fee:'Комісія ( 10 % + 0.1 Gram ):', withdrawTime:'Час виводу: ~5 хвилин - до 12 год',
+      payHist:'Історія платежів', noPay:'Платежів немає',
+      reg:'Зареєстровано', bal:'Баланс', minSpeed:'Швидкість майнінгу', totalW:'Усього виведено',
+      partnerInfoTitle:'🤝 Партнерські завдання', partnerInfoText:'Якщо у вас є канал або проєкт і ви хочете розмістити тут завдання, зв’яжіться з підтримкою',
+      addPartnerTitle:'➕ Додати партнерське завдання', title:'Заголовок', link:'Посилання', clicks:'Кліки', cost:'Вартість', publish:'Опублікувати', cancel:'Скасувати',
+      invitedHeader:'👥 Запрошені друзі',
+      leaderboard:'Таблиця лідерів', referrals:'👥 Реферали', depositsTab:'💎 Депозити', rewardCredited:'Нагорода буде зарахована через', updatesDaily:'Оновлюється щодня · 00:00 UTC',
+      yourRank:'Ваш ранг', prize:'Приз', loading:'Завантаження...', failedLoad:'Не вдалося завантажити', noData:'Даних поки немає', noTop:'Поки немає топ-майнерів', noFriends:'Поки немає запрошених друзів',
+      opened:'Відкрити', full:'Повний', completed:'✅ Виконано',
+      addTaskBtn:'+ Додати завдання',
+
+      mining:'Майнінг',
+      tasksNav:'Завдання',
+      friendsNav:'Друзі',
+      depositNav:'Депозит',
+      withdrawNav:'Виведення',
+
+      toast:{ claimed:'✅ Отримано', bonusClaimed:'✅ Бонус отримано', minimum1:'❌ Мінімум 1 Gram для отримання', minimum01collect:'❌ Мінімум для збору: 0.1 Gram', collected:'✅ Зібрано', copiedAddr:'✅ Адресу скопійовано!', copiedMemo:'✅ Коментар скопійовано!', connErr:'❌ Помилка з’єднання', depositConfirmed:'✅ Депозит підтверджено', txProcessed:'⚠️ Транзакцію вже оброблено', minDepSent:'❌ Мінімальний депозит 0.1 Gram', txNotFound:'❌ Транзакцію не знайдено. Спробуйте ще раз.', reinvested:'✅ Реінвест успішний!', enterAddr:'❌ Введіть адресу гаманця', minWithdraw:'❌ Мінімальне виведення 0.2 Gram', insufficient:'❌ Недостатньо балансу', withdrew:'✅ Виведення надіслано', enterPromo:'❌ Введіть промокод', promoApplied:'✅ Промокод застосовано!', loadFriends:'❌ Спочатку завантажте друзів', fillAll:'❌ Заповніть усі поля', minClicks:'❌ Мінімум 250 кліків', minDep:'❌ Мінімальний депозит 0.1 Gram', already:'❌ Уже отримано', notEnough:'❌ Ще недостатньо друзів', linkCopied:'✅ Посилання скопійовано!' }
+    },
+
+    ar: {
+      code:'ar', flag:'🇸🇦', name:'العربية', dir:'rtl',
+      ui:'اللغة',
+      rewards:'المكافآت', acc:'الدخل المتراكم', profit24:'ربح 24 ساعة', rate:'المعدل اليومي',
+      depAmount:'مبلغ الإيداع', collect:'جمع الدخل', speed:'زيادة السرعة', withdrawIncome:'سحب الدخل',
+      topMiners:'أفضل المعدّنين', promo:'رمز الترويج', apply:'تطبيق', promoPh:'أدخل رمز الترويج',
+      daily:'المهام اليومية', partner:'مهام الشركاء', addTask:'+ إضافة مهمة',
+      friends:'الأصدقاء', list:'📋 القائمة', inviteText:'ادعُ أصدقاءك واحصل على 10% من إيداعهم، بالإضافة إلى مكافآت حسب عدد الأصدقاء!',
+      inviteFriend:'👤 دعوة صديق', copy:'📋 نسخ', friendsRewards:'مكافآت الأصدقاء', claim:'استلام', min1:'الحد الأدنى 1 Gram',
+      bonuses:'مكافآت الأصدقاء', invite:'دعوة', deposit:'إيداع', depAmtLbl:'مبلغ الإيداع:', depInc:'ستزداد سرعة التعدين بمقدار:',
+      depSendTitle:'أرسل إيداعك', sendExactly:'أرسل بالضبط:', toAddr:'إلى عنوان المحفظة:', copyAddr:'نسخ العنوان', commentReq:'التعليق (مطلوب):',
+      copyMemo:'نسخ التعليق', check:'تحقق', afterSend:'بعد الإرسال اضغط Check. يصل التأكيد عادة خلال بضع دقائق.',
+      reinvest:'إعادة استثمار', reinvestAmt:'مبلغ إعادة الاستثمار:', depHist:'سجل الإيداعات', noDep:'لا توجد إيداعات',
+      withdraw:'سحب الأموال', amount:'المبلغ:', address:'العنوان (Gram~Ton):', memo:'الوسم/التعليق/الملاحظة (اختياري):',
+      received:'المبلغ المستلم:', fee:'الرسوم ( 10 % + 0.1 Gram ):', withdrawTime:'وقت السحب: حوالي 5 دقائق - حتى 12 ساعة',
+      payHist:'سجل المدفوعات', noPay:'لا توجد مدفوعات',
+      reg:'تاريخ التسجيل', bal:'الرصيد', minSpeed:'سرعة التعدين', totalW:'إجمالي المسحوب',
+      partnerInfoTitle:'🤝 مهام الشركاء', partnerInfoText:'إذا كان لديك قناة أو مشروع وتريد نشر مهمتك هنا فاتصل بالدعم',
+      addPartnerTitle:'➕ إضافة مهمة شريك', title:'العنوان', link:'الرابط', clicks:'النقرات', cost:'التكلفة', publish:'نشر', cancel:'إلغاء',
+      invitedHeader:'👥 الأصدقاء المدعوون',
+      leaderboard:'لوحة المتصدرين', referrals:'👥 الإحالات', depositsTab:'💎 الإيداعات', rewardCredited:'سيتم إضافة المكافآت خلال', updatesDaily:'يتم التحديث يوميًا · 00:00 UTC',
+      yourRank:'ترتيبك', prize:'الجائزة', loading:'جارٍ التحميل...', failedLoad:'فشل التحميل', noData:'لا توجد بيانات بعد', noTop:'لا يوجد أفضل معدّنين بعد', noFriends:'لا يوجد أصدقاء مدعوون بعد',
+      opened:'فتح', full:'ممتلئ', completed:'✅ مكتمل',
+      addTaskBtn:'+ إضافة مهمة',
+
+      mining:'التعدين',
+      tasksNav:'المهام',
+      friendsNav:'الأصدقاء',
+      depositNav:'الإيداع',
+      withdrawNav:'السحب',
+
+      toast:{ claimed:'✅ تم الاستلام', bonusClaimed:'✅ تم استلام المكافأة', minimum1:'❌ الحد الأدنى 1 Gram للاستلام', minimum01collect:'❌ الحد الأدنى للجمع 0.1 Gram', collected:'✅ تم الجمع', copiedAddr:'✅ تم نسخ العنوان!', copiedMemo:'✅ تم نسخ التعليق!', connErr:'❌ خطأ في الاتصال', depositConfirmed:'✅ تم تأكيد الإيداع', txProcessed:'⚠️ تمت معالجة المعاملة مسبقًا', minDepSent:'❌ الحد الأدنى للإيداع 0.1 Gram', txNotFound:'❌ لم يتم العثور على المعاملة. حاول مرة أخرى.', reinvested:'✅ تمت إعادة الاستثمار بنجاح!', enterAddr:'❌ أدخل عنوان المحفظة', minWithdraw:'❌ الحد الأدنى للسحب 0.2 Gram', insufficient:'❌ الرصيد غير كافٍ', withdrew:'✅ تم إرسال السحب', enterPromo:'❌ أدخل رمز ترويج', promoApplied:'✅ تم تطبيق الرمز!', loadFriends:'❌ حمّل الأصدقاء أولًا', fillAll:'❌ املأ جميع الحقول', minClicks:'❌ الحد الأدنى 250 نقرة', minDep:'❌ الحد الأدنى للإيداع 0.1 Gram', already:'❌ تم الاستلام مسبقًا', notEnough:'❌ لا يوجد عدد كافٍ من الأصدقاء', linkCopied:'✅ تم نسخ الرابط!' }
+    }
+  };
+
+  const $ = (s, root=document) => root.querySelector(s);
+  const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+
+  let LANG = localStorage.getItem(KEY) || 'en';
+  const T = () => L[LANG] || L.en;
+
+  function setText(sel, text, root=document) {
+    const el = $(sel, root);
+    if (el) el.textContent = text;
+  }
+  function setAttr(sel, attr, text, root=document) {
+    const el = $(sel, root);
+    if (el) el.setAttribute(attr, text);
+  }
+
+  function injectModal() {
+    if ($('#vmLangModal')) return;
+    const m = document.createElement('div');
+    m.id = 'vmLangModal';
+    m.className = 'vm-lang-modal hidden';
+    m.innerHTML = `
+      <div class="vm-lang-box">
+        <div class="vm-lang-head">
+          <h3 id="vmLangTitle">Language</h3>
+          <button class="btn btn-dark" id="vmLangClose" style="width:auto;padding:8px 12px">Close</button>
+        </div>
+        <div class="vm-lang-list" id="vmLangList"></div>
+      </div>`;
+    document.body.appendChild(m);
+
+    const list = $('#vmLangList', m);
+    Object.values(L).forEach(x => {
+      const btn = document.createElement('button');
+      btn.className = 'vm-lang-item';
+      btn.dataset.lang = x.code;
+      btn.innerHTML = `
+        <div class="vm-lang-left">
+          <div class="vm-lang-flag">${x.flag}</div>
+          <div class="vm-lang-name">${x.name}</div>
+        </div>
+        <div class="vm-lang-code">${x.code.toUpperCase()}</div>`;
+      btn.addEventListener('click', () => applyLang(x.code));
+      list.appendChild(btn);
+    });
+
+    $('#vmLangClose', m).addEventListener('click', closeModal);
+    m.addEventListener('click', e => { if (e.target === m) closeModal(); });
+  }
+
+  function openModal() { $('#vmLangModal')?.classList.remove('hidden'); }
+  function closeModal() { $('#vmLangModal')?.classList.add('hidden'); }
+
+  function translateToast(msg) {
+    const t = T().toast;
+    const s = String(msg);
+
+    const rules = [
+      [/^✅ Claimed: \+([\d.]+) Gram$/, `✅ ${t.claimed.replace('✅ ','')}: +$1 Gram`],
+      [/^✅ Bonus claimed: \+([\d.]+) Gram$/, `✅ ${t.bonusClaimed.replace('✅ ','')}: +$1 Gram`],
+      [/^✅ Collected: ([\d.]+) Gram$/, `✅ ${t.collected.replace('✅ ','')}: $1 Gram`],
+      [/^✅ Deposit confirmed: \+([\d.]+) Gram$/, `✅ ${t.depositConfirmed.replace('✅ ','')}: +$1 Gram`],
+      [/^✅ Reinvested successfully!$/, t.reinvested],
+      [/^✅ Withdrawal sent: ([\d.]+) Gram$/, `✅ ${t.withdrew.replace('✅ ','')}: $1 Gram`],
+      [/^✅ Promo applied! \+([\d.]+) Gram$/, `✅ ${t.promoApplied.replace('✅ ','')}: +$1 Gram`],
+      [/^✅ Link copied!$/, t.linkCopied],
+      [/^✅ Address copied!$/, t.copiedAddr],
+      [/^✅ Comment copied!$/, t.copiedMemo],
+      [/^❌ Minimum 1 Gram to claim$/, t.minimum1],
+      [/^❌ Minimum collect is 0.1 Gram$/, t.minimum01collect],
+      [/^❌ Minimum withdrawal is 0.2 Gram$/, t.minWithdraw],
+      [/^❌ Minimum deposit is 0.1 Gram$/, t.minDep],
+      [/^❌ Enter wallet address$/, t.enterAddr],
+      [/^❌ Insufficient balance$/, t.insufficient],
+      [/^❌ Enter a promo code$/, t.enterPromo],
+      [/^❌ Load friends first$/, t.loadFriends],
+      [/^❌ Fill in all fields$/, t.fillAll],
+      [/^❌ Minimum 250 clicks$/, t.minClicks],
+      [/^❌ Already claimed$/, t.already],
+      [/^❌ Not enough friends yet$/, t.notEnough],
+      [/^❌ Connection error$/, t.connErr],
+      [/^⚠️ Transaction already processed$/, t.txProcessed],
+      [/^❌ Transaction not found\. Try again\.$/, t.txNotFound],
+      [/^❌ Min deposit 0.1 Gram — sent: ([\d.]+) Gram$/, `${t.minDepSent} — sent: $1 Gram`],
+      [/^❌ Minimum deposit is 0.1 Gram$/, t.minDep],
+      [/^❌ Minimum reinvest is 0.1 Gram$/, t.minDep],
+      [/^❌ The task title should not be empty$/, t.fillAll],
+    ];
+
+    for (const [re, repl] of rules) if (re.test(s)) return s.replace(re, repl);
+    return s;
+  }
+
+  function applyLang(code) {
+    LANG = L[code] ? code : 'en';
+    localStorage.setItem(KEY, LANG);
+
+    const t = T();
+    document.documentElement.lang = LANG;
+    document.documentElement.dir = t.dir;
+
+    setText('.topbar .lang', `${t.flag} ${t.name} ▾`);
+    setText('#vmLangTitle', t.ui);
+    $$('#vmLangList .vm-lang-item').forEach(b => b.classList.toggle('active', b.dataset.lang === LANG));
+
+    setAttr('#btnLeaderboard', 'title', t.leaderboard);
+    setText('#btnLeaderboard + span', t.rewards);
+
+    setText('#page-mining .acc-title', t.acc);
+    const miningL = $$('#page-mining .stats .l');
+    if (miningL[0]) miningL[0].textContent = t.profit24;
+    if (miningL[1]) miningL[1].textContent = t.rate;
+    if (miningL[2]) miningL[2].textContent = t.depAmount;
+    setText('#btnCollect', t.collect);
+    setText('#btnIncreaseSpeed', t.speed);
+    setText('#btnWithdrawIncome', t.withdrawIncome);
+    setText('#page-mining h2 span', t.topMiners);
+
+    const taskH2 = $$('#page-tasks h2');
+    if (taskH2[0]) taskH2[0].textContent = t.promo;
+    if (taskH2[1]) taskH2[1].textContent = t.daily;
+    if (taskH2[2]) taskH2[2].textContent = t.partner;
+    setAttr('#promo', 'placeholder', t.promoPh);
+    setText('#btnPromo', t.apply);
+    setText('#btnAddTask', t.addTask);
+    setText('#btnPartnerInfo', '?');
+    setText('#btnPartnerInfo', '?');
+
+    const friendsH2 = $$('#page-friends h2');
+    if (friendsH2[0]) friendsH2[0].innerHTML = `${t.friends} <span class="badge" id="refCount">${$('#refCount')?.textContent || 0}</span>`;
+    if (friendsH2[1]) friendsH2[1].textContent = t.friendsRewards;
+    if (friendsH2[2]) friendsH2[2].textContent = t.bonuses;
+    setText('#btnFriendsList', t.list);
+    setText('#btnInvite', t.inviteFriend);
+    setText('#btnCopyRef', t.copy);
+    setText('#btnRefClaim', t.claim);
+    const minGram = $$('#page-friends .small');
+    if (minGram[0]) minGram[0].textContent = t.min1;
+    setText('#page-friends .muted.small', t.inviteText);
+    $$('[data-milestone]').forEach((b, i) => {
+      if (b.textContent.includes('Claim') || b.textContent.includes('✅')) b.textContent = t.claim;
+    });
+
+    const depH2 = $$('#page-deposit h2');
+    if (depH2[0]) depH2[0].textContent = t.deposit;
+    if (depH2[1]) depH2[1].textContent = t.reinvest;
+    if (depH2[2]) depH2[2].innerHTML = `${t.depHist} <span class="pill" style="font-size:14px;padding:4px 10px"><span id="depTotal">${$('#depTotal')?.textContent || '0.00'}</span><span class="ton-coin"></span></span>`;
+    setText('#page-deposit .label:nth-of-type(1)', t.depAmtLbl);
+    setText('#page-deposit .label:nth-of-type(2)', t.depInc);
+    setText('#btnDeposit', t.deposit);
+    setText('#depInstr h3', t.depSendTitle);
+    const depLabels = $$('#depInstr .label');
+    if (depLabels[0]) depLabels[0].textContent = t.sendExactly;
+    if (depLabels[1]) depLabels[1].textContent = t.toAddr;
+    if (depLabels[2]) depLabels[2].textContent = t.commentReq;
+    setText('#btnCopyAddr', t.copyAddr);
+    setText('#btnCopyMemo', t.copyMemo);
+    setText('#btnCheck', t.check);
+    setText('#depInstr .muted.small.center', t.afterSend);
+    setText('#btnReinvest', t.reinvest);
+    setText('#page-deposit .empty', t.noDep);
+    setText('#page-deposit h2 + .card .label', t.reinvestAmt);
+
+    const wH2 = $$('#page-withdraw h2');
+    if (wH2[0]) wH2[0].textContent = t.withdraw;
+    if (wH2[1]) wH2[1].innerHTML = `${t.payHist} <span class="pill" style="font-size:14px;padding:4px 10px"><span id="wTotal">${$('#wTotal')?.textContent || '0.00'}</span><span class="ton-coin"></span></span>`;
+    const wLabels = $$('#page-withdraw .label');
+    if (wLabels[0]) wLabels[0].textContent = t.amount;
+    if (wLabels[1]) wLabels[1].textContent = t.address;
+    if (wLabels[2]) wLabels[2].textContent = t.memo;
+    if (wLabels[3]) wLabels[3].textContent = t.received;
+    setAttr('#wAddr', 'placeholder', 'UQ...');
+    setAttr('#wMemo', 'value', 'Vault Miner');
+    setText('#btnWithdraw', t.withdraw);
+    $$('#page-withdraw .muted.small').forEach(el => {
+      if (el.textContent.includes('Fee (')) el.innerHTML = `${t.fee} <b><span id="wFee">${$('#wFee')?.textContent || '-'}</span> Gram</b>`;
+      if (el.textContent.includes('Withdrawal time')) el.innerHTML = `<b>${t.withdrawTime}</b>`;
+    });
+    setText('#wHistory', t.noPay);
+
+    setText('#profClose', 'Close');
+    const profLbl = $$('#profileModal .prof-lbl');
+    if (profLbl[0]) profLbl[0].textContent = '🆔 ID';
+    if (profLbl[1]) profLbl[1].textContent = `📅 ${t.reg}`;
+    if (profLbl[2]) profLbl[2].textContent = `💰 ${t.deposit}`;
+    if (profLbl[3]) profLbl[3].textContent = `⚡ ${t.minSpeed}`;
+    if (profLbl[4]) profLbl[4].textContent = `💎 ${t.bal}`;
+    if (profLbl[5]) profLbl[5].textContent = `📤 ${t.totalW}`;
+
+    setText('#partnerInfoModal h3', t.partnerInfoTitle);
+    setText('#partnerInfoModal p', t.partnerInfoText);
+    setText('#addTaskModal h3', t.addPartnerTitle);
+    const atLabels = $$('#addTaskModal .label');
+    if (atLabels[0]) atLabels[0].textContent = t.title;
+    if (atLabels[1]) atLabels[1].textContent = t.link;
+    if (atLabels[2]) atLabels[2].innerHTML = `${t.clicks} <span class="muted small">(min 250 = 0.5 Gram)</span>`;
+    if (atLabels[3]) atLabels[3].innerHTML = `${t.cost}: <b id="atCost">1.0000</b> Gram from your balance`;
+    setAttr('#atTitle', 'placeholder', t.title);
+    setAttr('#atLink', 'placeholder', t.link);
+    setText('#btnSubmitTask', t.publish);
+    $$('#addTaskModal .btn-dark').forEach(b => { if (b.textContent.includes('Cancel')) b.textContent = t.cancel; });
+
+    setText('#friendsListModal h3', t.invitedHeader);
+    setText('#friendsListClose', 'Close');
+    setText('#leaderboardModal .prof-sheet > div > div:first-child', '🏆 Leaderboard');
+    setText('#lbTabRef', t.referrals);
+    setText('#lbTabDep', t.depositsTab);
+    setText('#lbClose', 'Close');
+    setText('#lbMyRank', t.yourRank ? '' : '');
+
+    // bottom navigation
+    $$('.nav button').forEach(btn => {
+      const txt = btn.querySelector('.nav-txt');
+      if (!txt) return;
+      if (btn.dataset.tab === 'mining') txt.textContent = t.mining;
+      if (btn.dataset.tab === 'tasks') txt.textContent = t.tasksNav;
+      if (btn.dataset.tab === 'friends') txt.textContent = t.friendsNav;
+      if (btn.dataset.tab === 'deposit') txt.textContent = t.depositNav;
+      if (btn.dataset.tab === 'withdraw') txt.textContent = t.withdrawNav;
+    });
+
+    // translate common empty/loading states
+    $$('.empty').forEach(el => {
+      if (el.textContent.includes('No deposits')) el.textContent = t.noDep;
+      if (el.textContent.includes('No payments')) el.textContent = t.noPay;
+      if (el.textContent.includes('No top miners yet')) el.textContent = t.noTop;
+      if (el.textContent.includes('No friends invited yet')) el.textContent = t.noFriends;
+      if (el.textContent.includes('No data yet')) el.textContent = t.noData;
+      if (el.textContent.includes('Loading...')) el.textContent = t.loading;
+      if (el.textContent.includes('Failed to load')) el.textContent = t.failedLoad;
+    });
+
+    // translate current visible action buttons if they already exist
+    $$('button').forEach(b => {
+      const tx = b.textContent.trim();
+      if (tx === 'Claim') b.textContent = t.claim;
+      if (tx === 'Open') b.textContent = t.opened;
+      if (tx === 'Full') b.textContent = t.full;
+      if (tx === 'Publish') b.textContent = t.publish;
+      if (tx === 'Cancel') b.textContent = t.cancel;
+      if (tx === 'Close') b.textContent = 'Close';
+      if (tx === 'Apply') b.textContent = t.apply;
+      if (tx === '+ Add A Task') b.textContent = t.addTask;
+    });
+
+    // top bar / modal open button
+    const langBtn = $('.lang');
+    if (langBtn) {
+      langBtn.onclick = openModal;
+      langBtn.style.cursor = 'pointer';
+    }
+  }
+
+  const oldShowToast = window.showToast;
+  window.showToast = function(msg) {
+    if (typeof oldShowToast === 'function' && oldShowToast !== window.showToast) {
+      return oldShowToast(translateToast(msg));
+    }
+    const t = $('#toast');
+    if (!t) return;
+    t.textContent = translateToast(msg);
+    t.classList.remove('hidden');
+    setTimeout(() => t.classList.add('hidden'), 3000);
+  };
+
+  injectModal();
+
+  const langBtn = $('.lang');
+  if (langBtn) {
+    langBtn.style.cursor = 'pointer';
+    langBtn.addEventListener('click', openModal);
+  }
+
+  window.vmLang = () => LANG;
+  window.vmT = () => T();
+
+  applyLang(LANG);
 })();
 </script>
   
