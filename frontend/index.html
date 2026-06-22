@@ -558,6 +558,24 @@
   .vm-lang-code{ color:var(--muted,#8a8a93); font-weight:700; }
   html[dir="rtl"] .vm-lang-left{ flex-direction:row-reverse; }
   html[dir="rtl"] .vm-lang-item{ direction:rtl; }
+
+/* ── Splash Screen ── */
+#vmSplash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #000;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px;
+  transition: opacity 0.35s ease;
+}
+#vmSplash.fade-out { opacity: 0; pointer-events: none; }
+#vmSplash .sp-icon { font-size: 64px; animation: spFloat 1.4s ease-in-out infinite; }
+#vmSplash .sp-name { font-size: 22px; color: var(--blue); letter-spacing: 4px; font-weight: 700; }
+#vmSplash .sp-sub  { font-size: 12px; color: var(--muted); letter-spacing: 2px; }
+#vmSplash .sp-bar  { width: 140px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }
+#vmSplash .sp-fill { height: 100%; background: var(--blue); border-radius: 2px; animation: spSlide 1.4s ease-in-out infinite; }
+@keyframes spFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+@keyframes spSlide { 0%{transform:translateX(-100%)} 100%{transform:translateX(550%)} }
     
   </style>
 </head>
@@ -886,6 +904,13 @@
     </div>
   </div>
 </div>
+
+<div id="vmSplash">
+  <div class="sp-icon">⛏️</div>
+  <div class="sp-name">VAULT MINER</div>
+  <div class="sp-sub">[ MINING ENGINE ]</div>
+  <div class="sp-bar"><div class="sp-fill"></div></div>
+</div>
   
   <nav class="nav">
    <button data-tab="mining" class="active">
@@ -1083,31 +1108,92 @@ function _setCacheUntil(key, data, expiresAt) {
       return res.json();
     }
 
-    // ======== Load User ========
-    async function loadUser() {
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get('ref') || tg?.initDataUnsafe?.start_param || '';
-      const data = await apiPost('/api/me', { ref });
-      if (!data.user) return;
+    // ======== Animate Number ========
+function animateValue(elId, from, to, decimals, duration = 500) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (Math.abs(to - from) < 0.0001) { el.textContent = to.toFixed(decimals); return; }
+  const start = performance.now();
+  const diff  = to - from;
+  (function step(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = (from + diff * e).toFixed(decimals);
+    if (p < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
 
-      USER = data.user;
+// ======== Render User to DOM ========
+function renderUser(user, animate) {
+  const dep   = user.deposit_amount || 0;
+  const daily = dep * 0.10;
+  if (animate) {
+    const prevBal = parseFloat(document.getElementById('balance').textContent)   || 0;
+    const prevDep = parseFloat(document.getElementById('depAmount').textContent) || 0;
+    animateValue('balance',   prevBal, user.balance, 4);
+    animateValue('depAmount', prevDep, dep,          2);
+  } else {
+    document.getElementById('balance').textContent   = user.balance.toFixed(4);
+    document.getElementById('acc').textContent       = (user.mined || 0).toFixed(8);
+    document.getElementById('depAmount').textContent = dep.toFixed(2);
+  }
+  document.getElementById('profit24').textContent = daily.toFixed(4);
+  const wAmt = parseFloat(document.getElementById('wAmount').value) || 0;
+  const wFee = (wAmt * 0.10) + 0.1;
+  document.getElementById('wNet').textContent = Math.max(0, wAmt - wFee).toFixed(4);
+  document.getElementById('wFee').textContent = wFee.toFixed(4);
+}
+
+// ======== Splash ========
+function hideSplash(immediate) {
+  const el = document.getElementById('vmSplash');
+  if (!el) return;
+  if (immediate) { el.remove(); return; }
+  el.classList.add('fade-out');
+  setTimeout(() => el.remove(), 380);
+}
+
+// ======== Load User ========
+async function loadUser() {
+  const params = new URLSearchParams(window.location.search);
+  const ref    = params.get('ref') || tg?.initDataUnsafe?.start_param || '';
+
+  // ── مستخدم عائد: cache موجودة → عرض فوري ──
+  const cached = _getCached('user_data');
+  if (cached?.user) {
+    USER   = cached.user;
+    CONFIG = cached.config || {};
+    renderUser(USER, false);
+    setupProfilePhoto();
+    hideSplash(true); // فوري بدون animation
+
+    // تحديث خلفي صامت
+    try {
+      const fresh = await apiPost('/api/me', { ref });
+      if (fresh?.user) {
+        USER   = fresh.user;
+        CONFIG = fresh.config;
+        _setCache('user_data', fresh);
+        renderUser(USER, true); // animation هادئ للتغييرات فقط
+        setupProfilePhoto();
+      }
+    } catch {}
+    return;
+  }
+
+  // ── مستخدم جديد: Splash يظهر حتى يصل الرد ──
+  try {
+    const data = await apiPost('/api/me', { ref });
+    if (data?.user) {
+      USER   = data.user;
       CONFIG = data.config;
+      _setCache('user_data', data);
+      renderUser(USER, false);
       setupProfilePhoto();
-
-      const depositAmt = USER.deposit_amount || 0;
-      const daily = depositAmt * 0.10;
-
-      document.getElementById('balance').textContent = USER.balance.toFixed(4);
-      document.getElementById('acc').textContent = USER.mined.toFixed(8);
-      document.getElementById('depAmount').textContent = depositAmt.toFixed(2);
-      document.getElementById('profit24').textContent = daily.toFixed(4);
-
-      // Update wNet based on current input
-      const wAmt = parseFloat(document.getElementById('wAmount').value) || 0;
-      const wInitFee = (wAmt * 0.10) + 0.1;
-document.getElementById('wNet').textContent = Math.max(0, wAmt - wInitFee).toFixed(4);
-document.getElementById('wFee').textContent = wInitFee.toFixed(4);
     }
+  } catch {}
+  hideSplash(false); // fade out بعد تحميل البيانات
+}
 
 // ======== Load Top Miners ========
 async function loadTopMiners() {
@@ -1211,6 +1297,7 @@ async function loadTopMiners() {
         btn.style.opacity = '0.35';
         btn.style.pointerEvents = 'none';
         _invalidate('friends');
+        _invalidate('user_data');
         showToast('✅ Claimed: +' + parseFloat(data.claimed).toFixed(4) + ' Gram');
       } else {
         const errMap = { 'min_1_ton': 'Minimum 1 Gram to claim' };
@@ -1231,6 +1318,7 @@ async function loadTopMiners() {
           btn.style.pointerEvents = 'none';
           _invalidate('friends');
           _invalidate('milestones');
+          _invalidate('user_data');
           showToast('✅ Bonus claimed: +' + data.reward + ' Gram');
         } else {
           const errMap = {
@@ -1321,6 +1409,7 @@ async function loadTopMiners() {
         document.getElementById('balance').textContent = data.balance.toFixed(4);
         document.getElementById('acc').textContent = '0.00000000';
         showToast('✅ Collected: ' + data.claimed.toFixed(4) + ' Gram');
+        _invalidate('user_data');
       } else {
         const errMap = { 'min_collect_0.1': 'Minimum 0.1 Gram to collect', 'rate_limited': 'Please wait a moment' };
         showToast('❌ ' + (errMap[data.error] || data.error));
@@ -1448,6 +1537,7 @@ await loadDepositHistory();
         document.getElementById('reGain').textContent = '0.0000';
         _invalidate('dep_history');
         showToast('✅ Reinvested successfully!');
+        _invalidate('user_data');
       } else {
         const errMap = {
           'min_reinvest_0.1': 'Minimum reinvest is 0.1 Gram',
@@ -1482,6 +1572,7 @@ await loadDepositHistory();
       document.getElementById('balance').textContent = USER.balance.toFixed(4);
       _invalidate('with_history');
       showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' Gram');
+        _invalidate('user_data');
       await loadWithdrawHistory();
       } else {
         const errMap = {
