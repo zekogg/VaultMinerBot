@@ -1129,7 +1129,7 @@ async function loadTopMiners() {
 
   const list = document.getElementById('topList');
   if (data.miners.length === 0) {
-    list.innerHTML = '<div class="empty">No top miners yet</div>';
+    list.innerHTML = `<div class="empty">${vmT().noTop}</div>`;
     return;
   }
 
@@ -1263,7 +1263,7 @@ async function loadTopMiners() {
     async function openFriendsList() {
   document.getElementById('friendsListModal').classList.remove('hidden');
   const content = document.getElementById('friendsListContent');
-  content.innerHTML = '<div class="muted small center" style="padding:24px">Loading...</div>';
+  content.innerHTML = `<div class="muted small center" style="padding:24px">${vmT().loading}</div>`;
   let data = _getCached('friends');
   if (!data) {
     data = await apiGet('/api/friends');
@@ -1538,14 +1538,14 @@ await loadDepositHistory();
 
       let actionHTML;
       if (t.done) {
-        actionHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+        actionHTML = `<span class="task-done-overlay">${vmT().completed}</span>`;
       } else if (t.type === 'deposit') {
         actionHTML = t.deposit_ok
-          ? `<button class="task-btn green" onclick="claimDailyTask(${t.id})">Claim</button>`
-          : `<button class="task-btn" onclick="switchTab('deposit')">Deposit</button>`;
-      } else {
-        actionHTML = `<button class="task-btn" onclick="dailyTaskOpen(${t.id})">Open</button>`;
-      }
+  ? `<button class="task-btn green" onclick="claimDailyTask(${t.id})">${vmT().claim}</button>`
+  : `<button class="task-btn" onclick="switchTab('deposit')">${vmT().deposit}</button>`;
+} else {
+  actionHTML = `<button class="task-btn" onclick="dailyTaskOpen(${t.id})">${vmT().opened}</button>`;
+}
 
       el.innerHTML = `
         <div class="head">
@@ -1589,12 +1589,12 @@ await loadDepositHistory();
         const link = refLink || `https://t.me/${CONFIG.bot_username || 'VaultMinerBot'}?start=${USER.id}`;
         tg?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('⛏️ Earn 10% Daily Gram')}`);
       }
-      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="dailyTaskCheck(${taskId})">Check</button>`;
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="dailyTaskCheck(${taskId})">${vmT().check}</button>`;
     }
 
     function dailyTaskCheck(taskId) {
       const actionDiv = document.getElementById(`dt-action-${taskId}`);
-      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">Claim</button>`;
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">${vmT().claim}</button>`;
     }
 
     async function claimDailyTask(taskId) {
@@ -1604,7 +1604,7 @@ await loadDepositHistory();
       if (data.ok) {
         USER.balance = data.balance;
         document.getElementById('balance').textContent = data.balance.toFixed(4);
-        if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+        if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">${vmT().completed}</span>`;
         _invalidate('daily_tasks');
         showToast('✅ +' + data.reward.toFixed(3) + ' Gram');
       } else {
@@ -1673,7 +1673,7 @@ await loadDepositHistory();
   }
   const list = document.getElementById('partnerTasksList');
       if (!data.tasks || data.tasks.length === 0) {
-        list.innerHTML = '<div class="empty">No partner tasks yet</div>';
+        list.innerHTML = `<div class="empty">${vmT().noData}</div>`;
         return;
       }
       list.innerHTML = '';
@@ -1683,11 +1683,11 @@ await loadDepositHistory();
         el.className = 'task';
         let actionHTML;
         if (t.done) {
-          actionHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+          actionHTML = `<span class="task-done-overlay">${vmT().completed}</span>`;
         } else if (t.remaining <= 0) {
-          actionHTML = `<span class="muted small">Full</span>`;
+          actionHTML = `<span class="muted small">${vmT().full}</span>`;
         } else {
-          actionHTML = `<button class="task-btn" onclick="partnerTaskOpen(${t.id})">Open</button>`;
+          actionHTML = `<button class="task-btn" onclick="partnerTaskOpen(${t.id})">${vmT().opened}</button>`;
         }
         el.innerHTML = `
           <div class="head">
@@ -1711,12 +1711,12 @@ await loadDepositHistory();
       if (t.url.includes('t.me/')) tg?.openTelegramLink(t.url);
       else tg?.openLink(t.url);
       const actionDiv = document.getElementById(`pt-action-${taskId}`);
-      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="partnerTaskCheck(${taskId})">Check</button>`;
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="partnerTaskCheck(${taskId})">${vmT().check}</button>`;
     }
 
     function partnerTaskCheck(taskId) {
       const actionDiv = document.getElementById(`pt-action-${taskId}`);
-      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimPartnerTask(${taskId})">Claim</button>`;
+      if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimPartnerTask(${taskId})">${vmT().claim}</button>`;
     }
 
     async function claimPartnerTask(taskId) {
@@ -1726,7 +1726,7 @@ await loadDepositHistory();
       if (data.ok) {
     USER.balance = (USER.balance || 0) + (data.reward || 0.001);
     document.getElementById('balance').textContent = USER.balance.toFixed(4);
-    if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">✅ Completed</span>`;
+    if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">${vmT().completed}</span>`;
     _invalidate('partner_tasks');
     showToast('✅ +0.001 Gram');
       } else {
@@ -1999,12 +1999,12 @@ function renderLeaderboard() {
   const myPrize  = getPrizeFn(myRank);
   const myRankEl = document.getElementById('lbMyRank');
   myRankEl.innerHTML = myRank <= 20
-    ? `Your rank: <b style="color:#fff">#${myRank}</b>${myPrize > 0 ? ` &middot; Prize: <b style="color:var(--green)">${myPrize} Gram</b>` : ''}`
-    : `Your rank: <b style="color:#fff">#${myRank}</b>`;
+  ? `${vmT().yourRank}: <b style="color:#fff">#${myRank}</b>${myPrize > 0 ? ` &middot; ${vmT().prize}: <b style="color:var(--green)">${myPrize} Gram</b>` : ''}`
+  : `${vmT().yourRank}: <b style="color:#fff">#${myRank}</b>`;
 
   const content = document.getElementById('lbContent');
   if (!list || list.length === 0) {
-    content.innerHTML = '<div class="muted small center" style="padding:24px">No data yet</div>';
+    content.innerHTML = `<div class="muted small center" style="padding:24px">${vmT().noData}</div>`;
     return;
   }
   content.innerHTML = list.map(u => renderLbRow(u, getPrizeFn, valueKey, valueLabel)).join('');
