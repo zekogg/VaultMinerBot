@@ -800,6 +800,10 @@ return json({
                   [{
                     text: "Channel 📢",
                     url: "https://t.me/VaultMinerNews"
+                  }],
+                  [{
+                    text: "Support 🆘",
+                    url: "https://t.me/VaultSupport0Bot"
                   }]
                 ]
               }
