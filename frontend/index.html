@@ -297,6 +297,14 @@
     .nav button.active { color: #fff; }
 
     .hidden { display: none !important; }
+
+    @keyframes pageIn {
+      from { opacity: 0; filter: blur(12px); transform: scale(0.97); }
+      to   { opacity: 1; filter: blur(0px);  transform: scale(1);    }
+    }
+    .page-enter {
+      animation: pageIn 0.22s ease-out forwards;
+    }
     .center { text-align: center; }
     .small { font-size: 13px; }
 
@@ -1376,10 +1384,16 @@ async function loadTopMiners() {
     // ======== Navigation ========
     function switchTab(tabName) {
       document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+      document.querySelectorAll('.page').forEach(p => {
+        p.classList.add('hidden');
+        p.classList.remove('page-enter');
+      });
       const navBtn = document.querySelector(`[data-tab="${tabName}"]`);
       if (navBtn) navBtn.classList.add('active');
-      document.getElementById('page-' + tabName).classList.remove('hidden');
+      const page = document.getElementById('page-' + tabName);
+      page.classList.remove('hidden');
+      void page.offsetWidth; // force reflow لإعادة تشغيل الأنميشن
+      page.classList.add('page-enter');
     }
 
     document.querySelectorAll('.nav button').forEach(btn => {
