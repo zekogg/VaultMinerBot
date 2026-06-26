@@ -1099,12 +1099,12 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     depTop = depData.results;
     await cache.put(cacheKey, new Response(
       JSON.stringify({ referrals: refTop, deposits: depTop }),
-      { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=28800" } }
+      { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=43200" } }
     ));
   }
 
   // My Rank — كاش لكل مستخدم، متزامن مع نفس نافذة 8h لقوائم leaderboard
-  const RANK_PERIOD_MS = 8 * 60 * 60 * 1000;
+  const RANK_PERIOD_MS = 12 * 60 * 60 * 1000;
   const period  = Math.floor(Date.now() / RANK_PERIOD_MS);
   const rankKey = new Request(`https://cache.vault/myrank-${tgUser.id}-${period}`);
 
@@ -1135,8 +1135,8 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     ));
   }
 
-  const PERIOD_MS  = 480 * 60 * 60 * 1000;
-  const LB_EPOCH   = 1781049600000;
+  const PERIOD_MS  = 240 * 60 * 60 * 1000;
+  const LB_EPOCH   = 1782432000000;
   const now        = Date.now();
   const elapsed    = Math.max(0, now - LB_EPOCH);
   const nextReward = LB_EPOCH + (Math.floor(elapsed / PERIOD_MS) + 1) * PERIOD_MS;
