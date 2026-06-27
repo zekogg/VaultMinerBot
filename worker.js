@@ -505,7 +505,7 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         const { amount, address, memo } = await request.json();
         const amt = Number(amount);
         if (!amt || amt < 0.2 || !address) return json({ error: "invalid_input" }, 400);
-        const fee10    = amt * 0.10;
+        const fee10    = amt * 0.15;
         const feeFixed = 0.1;
         const totalFee = fee10 + feeFixed;
         const net      = amt - totalFee;
