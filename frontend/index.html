@@ -786,7 +786,7 @@
       <div class="label">Amount to be received:</div>
       <div class="field"><b><span id="wNet">0.0000</span></b> Gram</div>
       <button class="btn btn-blue" id="btnWithdraw" style="margin-top:16px">Withdraw</button>
-      <div class="muted small" style="margin-top:10px">Fee ( 10 % + 0.1 Gram ): <b><span id="wFee">-</span> Gram</b></div>
+      <div class="muted small" style="margin-top:10px">Fee ( 15 % + 0.1 Gram ): <b><span id="wFee">-</span> Gram</b></div>
       <div class="muted small">Withdrawal time: <b>~5 minutes - Up To 12h</b></div>
     </div>
 
@@ -1147,7 +1147,7 @@ function renderUser(user, animate) {
   }
   document.getElementById('profit24').textContent = daily.toFixed(4);
   const wAmt = parseFloat(document.getElementById('wAmount').value) || 0;
-  const wFee = (wAmt * 0.10) + 0.1;
+  const wFee = (wAmt * 0.15) + 0.1;
   document.getElementById('wNet').textContent = Math.max(0, wAmt - wFee).toFixed(4);
   document.getElementById('wFee').textContent = wFee.toFixed(4);
 }
@@ -1565,7 +1565,7 @@ await loadDepositHistory();
     // ======== Withdraw - Real-time Net Preview ========
     document.getElementById('wAmount').addEventListener('input', function () {
       const amt      = parseFloat(this.value) || 0;
-      const totalFee = (amt * 0.10) + 0.1;
+      const totalFee = (amt * 0.15) + 0.1;
       document.getElementById('wNet').textContent = Math.max(0, amt - totalFee).toFixed(4);
       document.getElementById('wFee').textContent = totalFee.toFixed(4);
     });
@@ -2176,7 +2176,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'Copy comment', check:'Check', afterSend:'After sending, press Check. Confirmation usually arrives in a few minutes.',
       reinvest:'Reinvest', reinvestAmt:'Reinvestment amount:', depHist:'Deposit History', noDep:'No deposits',
       withdraw:'Withdrawal of funds', amount:'Amount:', address:'Address (Gram~Ton):', memo:'Tag/comment/memo (optional):',
-      received:'Amount to be received:', fee:'Fee ( 10 % + 0.1 Gram ):', withdrawTime:'Withdrawal time: ~5 minutes - Up To 12h',
+      received:'Amount to be received:', fee:'Fee ( 15 % + 0.1 Gram ):', withdrawTime:'Withdrawal time: ~5 minutes - Up To 12h',
       payHist:'Payment history', noPay:'No payments',
       reg:'Registered', bal:'Balance', minSpeed:'Mining Speed', totalW:'Total Withdrawn',
       partnerInfoTitle:'🤝 Partner Tasks', partnerInfoText:'If You Have A Channel or A Project And You Want to Publish Your Task Here Contact The Support',
@@ -2237,7 +2237,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'Скопировать комментарий', check:'Проверить', afterSend:'После отправки нажмите Check. Подтверждение обычно приходит за несколько минут.',
       reinvest:'Реинвест', reinvestAmt:'Сумма реинвеста:', depHist:'История депозитов', noDep:'Депозитов нет',
       withdraw:'Вывод средств', amount:'Сумма:', address:'Адрес (Gram~Ton):', memo:'Тег/комментарий/мемо (необязательно):',
-      received:'К получению:', fee:'Комиссия ( 10 % + 0.1 Gram ):', withdrawTime:'Время вывода: ~5 минут - до 12ч',
+      received:'К получению:', fee:'Комиссия ( 15 % + 0.1 Gram ):', withdrawTime:'Время вывода: ~5 минут - до 12ч',
       payHist:'История платежей', noPay:'Платежей нет',
       reg:'Дата регистрации', bal:'Баланс', minSpeed:'Скорость майнинга', totalW:'Всего выведено',
       partnerInfoTitle:'🤝 Партнёрские задания', partnerInfoText:'Если у вас есть канал или проект и вы хотите опубликовать здесь задание, свяжитесь с поддержкой',
@@ -2271,7 +2271,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'Copiar comentário', check:'Verificar', afterSend:'Depois de enviar, pressione Check. A confirmação normalmente chega em alguns minutos.',
       reinvest:'Reinvestir', reinvestAmt:'Valor do reinvestimento:', depHist:'Histórico de depósitos', noDep:'Sem depósitos',
       withdraw:'Saque de fundos', amount:'Valor:', address:'Endereço (Gram~Ton):', memo:'Tag/comentário/memo (opcional):',
-      received:'Valor a receber:', fee:'Taxa ( 10 % + 0.1 Gram ):', withdrawTime:'Tempo de saque: ~5 minutos - até 12h',
+      received:'Valor a receber:', fee:'Taxa ( 15 % + 0.1 Gram ):', withdrawTime:'Tempo de saque: ~5 minutos - até 12h',
       payHist:'Histórico de pagamentos', noPay:'Sem pagamentos',
       reg:'Registrado', bal:'Saldo', minSpeed:'Velocidade de mineração', totalW:'Total sacado',
       partnerInfoTitle:'🤝 Tarefas de parceiros', partnerInfoText:'Se você tem um canal ou projeto e quer publicar sua tarefa aqui, entre em contato com o suporte',
@@ -2305,7 +2305,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'Copiar comentario', check:'Comprobar', afterSend:'Después de enviar, pulsa Check. La confirmación suele llegar en unos minutos.',
       reinvest:'Reinvertir', reinvestAmt:'Monto de reinversión:', depHist:'Historial de depósitos', noDep:'Sin depósitos',
       withdraw:'Retiro de fondos', amount:'Monto:', address:'Dirección (Gram~Ton):', memo:'Tag/comentario/memo (opcional):',
-      received:'Monto a recibir:', fee:'Comisión ( 10 % + 0.1 Gram ):', withdrawTime:'Tiempo de retiro: ~5 minutos - hasta 12h',
+      received:'Monto a recibir:', fee:'Comisión ( 15 % + 0.1 Gram ):', withdrawTime:'Tiempo de retiro: ~5 minutos - hasta 12h',
       payHist:'Historial de pagos', noPay:'Sin pagos',
       reg:'Registrado', bal:'Saldo', minSpeed:'Velocidad de minería', totalW:'Total retirado',
       partnerInfoTitle:'🤝 Tareas de socios', partnerInfoText:'Si tienes un canal o proyecto y quieres publicar tu tarea aquí, contacta con soporte',
@@ -2339,7 +2339,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'Yorumu kopyala', check:'Kontrol et', afterSend:'Gönderdikten sonra Check’e basın. Onay genelde birkaç dakika içinde gelir.',
       reinvest:'Yeniden yatırım', reinvestAmt:'Yeniden yatırım miktarı:', depHist:'Yatırım geçmişi', noDep:'Yatırım yok',
       withdraw:'Para çekme', amount:'Miktar:', address:'Adres (Gram~Ton):', memo:'Etiket/yorum/memo (isteğe bağlı):',
-      received:'Alınacak miktar:', fee:'Ücret ( 10 % + 0.1 Gram ):', withdrawTime:'Çekim süresi: ~5 dakika - 12 saate kadar',
+      received:'Alınacak miktar:', fee:'Ücret ( 15 % + 0.1 Gram ):', withdrawTime:'Çekim süresi: ~5 dakika - 12 saate kadar',
       payHist:'Ödeme geçmişi', noPay:'Ödeme yok',
       reg:'Kayıt tarihi', bal:'Bakiye', minSpeed:'Madencilik hızı', totalW:'Toplam çekilen',
       partnerInfoTitle:'🤝 Ortak görevler', partnerInfoText:'Bir kanalınız veya projeniz varsa ve görevinizi burada yayınlamak istiyorsanız destek ile iletişime geçin',
@@ -2373,7 +2373,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'Sao chép bình luận', check:'Kiểm tra', afterSend:'Sau khi gửi, nhấn Check. Xác nhận thường đến trong vài phút.',
       reinvest:'Tái đầu tư', reinvestAmt:'Số tiền tái đầu tư:', depHist:'Lịch sử nạp', noDep:'Không có khoản nạp',
       withdraw:'Rút tiền', amount:'Số tiền:', address:'Địa chỉ (Gram~Ton):', memo:'Tag/bình luận/memo (tùy chọn):',
-      received:'Số tiền nhận:', fee:'Phí ( 10 % + 0.1 Gram ):', withdrawTime:'Thời gian rút: ~5 phút - tối đa 12h',
+      received:'Số tiền nhận:', fee:'Phí ( 15 % + 0.1 Gram ):', withdrawTime:'Thời gian rút: ~5 phút - tối đa 12h',
       payHist:'Lịch sử thanh toán', noPay:'Không có thanh toán',
       reg:'Đã đăng ký', bal:'Số dư', minSpeed:'Tốc độ đào', totalW:'Tổng đã rút',
       partnerInfoTitle:'🤝 Nhiệm vụ đối tác', partnerInfoText:'Nếu bạn có kênh hoặc dự án và muốn đăng nhiệm vụ ở đây, hãy liên hệ hỗ trợ',
@@ -2407,7 +2407,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'Копіювати коментар', check:'Перевірити', afterSend:'Після надсилання натисніть Check. Підтвердження зазвичай надходить за кілька хвилин.',
       reinvest:'Реінвест', reinvestAmt:'Сума реінвесту:', depHist:'Історія депозитів', noDep:'Депозитів немає',
       withdraw:'Виведення коштів', amount:'Сума:', address:'Адреса (Gram~Ton):', memo:'Тег/коментар/мемо (необов’язково):',
-      received:'Сума до отримання:', fee:'Комісія ( 10 % + 0.1 Gram ):', withdrawTime:'Час виводу: ~5 хвилин - до 12 год',
+      received:'Сума до отримання:', fee:'Комісія ( 15 % + 0.1 Gram ):', withdrawTime:'Час виводу: ~5 хвилин - до 12 год',
       payHist:'Історія платежів', noPay:'Платежів немає',
       reg:'Зареєстровано', bal:'Баланс', minSpeed:'Швидкість майнінгу', totalW:'Усього виведено',
       partnerInfoTitle:'🤝 Партнерські завдання', partnerInfoText:'Якщо у вас є канал або проєкт і ви хочете розмістити тут завдання, зв’яжіться з підтримкою',
@@ -2441,7 +2441,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       copyMemo:'نسخ التعليق', check:'تحقق', afterSend:'بعد الإرسال اضغط Check. يصل التأكيد عادة خلال بضع دقائق.',
       reinvest:'إعادة استثمار', reinvestAmt:'مبلغ إعادة الاستثمار:', depHist:'سجل الإيداعات', noDep:'لا توجد إيداعات',
       withdraw:'سحب الأموال', amount:'المبلغ:', address:'العنوان (Gram~Ton):', memo:'الوسم/التعليق/الملاحظة (اختياري):',
-      received:'المبلغ المستلم:', fee:'الرسوم ( 10 % + 0.1 Gram ):', withdrawTime:'وقت السحب: حوالي 5 دقائق - حتى 12 ساعة',
+      received:'المبلغ المستلم:', fee:'الرسوم ( 15 % + 0.1 Gram ):', withdrawTime:'وقت السحب: حوالي 5 دقائق - حتى 12 ساعة',
       payHist:'سجل المدفوعات', noPay:'لا توجد مدفوعات',
       reg:'تاريخ التسجيل', bal:'الرصيد', minSpeed:'سرعة التعدين', totalW:'إجمالي المسحوب',
       partnerInfoTitle:'🤝 مهام الشركاء', partnerInfoText:'إذا كان لديك قناة أو مشروع وتريد نشر مهمتك هنا فاتصل بالدعم',
