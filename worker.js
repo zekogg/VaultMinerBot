@@ -290,7 +290,7 @@ function computeMined(user) {
   const now = Date.now();
   const elapsedMs = Math.max(0, now - (user.last_claim || now));
   const depositAmount = user.deposit_amount || 0;
-  const dailyEarning = depositAmount * 0.10;
+  const dailyEarning = depositAmount * 0.08;
   const perMs = dailyEarning / (24 * 60 * 60 * 1000);
   return elapsedMs * perMs;
 }
