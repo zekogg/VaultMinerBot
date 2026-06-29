@@ -1992,7 +1992,7 @@ return `
     setInterval(() => {
       if (!(USER.deposit_amount > 0) || !USER.last_claim) return;
       const elapsed = (Date.now() - USER.last_claim) / 1000;
-      const dailyEarning = USER.deposit_amount * 0.10;
+      const dailyEarning = USER.deposit_amount * 0.08;
       const perSec = dailyEarning / (24 * 3600);
       const mined = elapsed * perSec;
       document.getElementById('acc').textContent = mined.toFixed(8);
