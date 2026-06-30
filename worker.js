@@ -1158,7 +1158,7 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     ));
   }
 
-  const PERIOD_MS  = 139 * 60 * 60 * 1000;
+  const PERIOD_MS  = 141 * 60 * 60 * 1000;
   const LB_EPOCH   = 1782432000000;
   const now        = Date.now();
   const elapsed    = Math.max(0, now - LB_EPOCH);
