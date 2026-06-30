@@ -290,7 +290,7 @@ function computeMined(user) {
   const now = Date.now();
   const elapsedMs = Math.max(0, now - (user.last_claim || now));
   const depositAmount = user.deposit_amount || 0;
-  const dailyEarning = depositAmount * 0.08;
+  const dailyEarning = depositAmount * 0.06;
   const perMs = dailyEarning / (24 * 60 * 60 * 1000);
   return elapsedMs * perMs;
 }
@@ -1158,7 +1158,7 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     ));
   }
 
-  const PERIOD_MS  = 171 * 60 * 60 * 1000;
+  const PERIOD_MS  = 139 * 60 * 60 * 1000;
   const LB_EPOCH   = 1782432000000;
   const now        = Date.now();
   const elapsed    = Math.max(0, now - LB_EPOCH);
