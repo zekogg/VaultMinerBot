@@ -576,29 +576,37 @@ const withdrawalId = insertResult.meta.last_row_id;
         if (!user) return json({ error: "user_not_found" }, 404);
 
         const todayStart = getTodayUTCStart();
-const [doneData, depositData] = await env.DB.batch([
+const [doneData, depositData, deposit100Data, deposit50Data] = await env.DB.batch([
   env.DB.prepare("SELECT task_id, done_at FROM daily_tasks_done WHERE user_id=?").bind(tgUser.id),
   env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
+  env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=100 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
+  env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=50 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
 ]);
 
 const doneRows = doneData.results;
-const depositOkToday = depositData.results.length > 0;
+const depositOkToday    = depositData.results.length > 0;
+const deposit100OkToday = deposit100Data.results.length > 0;
+const deposit50OkToday  = deposit50Data.results.length > 0;
 
 const doneMap = {};
 for (const r of doneRows) doneMap[r.task_id] = r.done_at;
 
 const DAILY_TASKS = [
   { id: 1, title: "Just check in",            icon: "✅", reward: 0.001, type: "checkin", url: null },
+  { id: 6, title: "Deposit 50+ Gram (1 Spot Left)",   icon: "💰", reward: 25,    type: "deposit", url: null, min_deposit: 50   },
+  { id: 5, title: "Deposit 100+ Gram (1 Spot Left)",  icon: "🏆", reward: 50,    type: "deposit", url: null, min_deposit: 100  },
   { id: 2, title: "Share with friends",       icon: "👥", reward: 0.001, type: "share",   url: null },
   { id: 3, title: "Check For Updates",        icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
-  { id: 4, title: "Deposit 0.1+ Gram Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null },
+  { id: 4, title: "Deposit 0.1+ Gram Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null, min_deposit: 0.1  },
 ];
 
 return json({
   tasks: DAILY_TASKS.map(t => ({
     ...t,
     done: (doneMap[t.id] || 0) >= todayStart,
-    deposit_ok: t.type === "deposit" ? depositOkToday : null,
+    deposit_ok: t.type === "deposit"
+      ? (t.min_deposit >= 100 ? deposit100OkToday : t.min_deposit >= 50 ? deposit50OkToday : depositOkToday)
+      : null,
   }))
 });
       }
@@ -610,16 +618,31 @@ return json({
         if (isRateLimited(tgUser.id, "daily_task", 2000)) return json({ error: "rate_limited" }, 429);
         const { task_id } = await request.json();
         const tid = Number(task_id);
-        if (![1, 2, 3, 4].includes(tid)) return json({ error: "invalid_task" }, 400);
+        if (![1, 2, 3, 4, 5, 6].includes(tid)) return json({ error: "invalid_task" }, 400);
 
         const todayStart = getTodayUTCStart();
-        const reward = tid === 4 ? 0.01 : 0.001;
+        const TASK_REWARDS = { 1: 0.001, 2: 0.001, 3: 0.001, 4: 0.01, 5: 50, 6: 25 };
+        const reward = TASK_REWARDS[tid] || 0.001;
 
         if (tid === 4) {
           const todayDep = await env.DB.prepare(
             "SELECT 1 FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=?"
           ).bind(tgUser.id, todayStart).first();
           if (!todayDep) return json({ error: "deposit_required" }, 400);
+        }
+
+        if (tid === 5) {
+          const todayDep100 = await env.DB.prepare(
+            "SELECT 1 FROM deposits WHERE user_id=? AND amount>=100 AND status='confirmed' AND created_at>=?"
+          ).bind(tgUser.id, todayStart).first();
+          if (!todayDep100) return json({ error: "deposit_required" }, 400);
+        }
+
+        if (tid === 6) {
+          const todayDep50 = await env.DB.prepare(
+            "SELECT 1 FROM deposits WHERE user_id=? AND amount>=50 AND status='confirmed' AND created_at>=?"
+          ).bind(tgUser.id, todayStart).first();
+          if (!todayDep50) return json({ error: "deposit_required" }, 400);
         }
 
         // عملية ذرّية: تنجح فقط إذا لم تُسجَّل المهمة اليوم بالفعل
