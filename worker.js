@@ -648,6 +648,13 @@ return json({
           if (!todayDep50) return json({ error: "deposit_required" }, 400);
         }
 
+        if (tid === 7) {
+          const todayDep10 = await env.DB.prepare(
+            "SELECT 1 FROM deposits WHERE user_id=? AND amount>=10 AND status='confirmed' AND created_at>=?"
+          ).bind(tgUser.id, todayStart).first();
+          if (!todayDep10) return json({ error: "deposit_required" }, 400);
+        }
+
         // عملية ذرّية: تنجح فقط إذا لم تُسجَّل المهمة اليوم بالفعل
         const claimResult = await env.DB.prepare(
           `INSERT INTO daily_tasks_done(user_id, task_id, done_at) VALUES(?,?,?)
