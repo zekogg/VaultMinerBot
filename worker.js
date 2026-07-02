@@ -576,23 +576,26 @@ const withdrawalId = insertResult.meta.last_row_id;
         if (!user) return json({ error: "user_not_found" }, 404);
 
         const todayStart = getTodayUTCStart();
-const [doneData, depositData, deposit100Data, deposit50Data] = await env.DB.batch([
+const [doneData, depositData, deposit100Data, deposit50Data, deposit10Data] = await env.DB.batch([
   env.DB.prepare("SELECT task_id, done_at FROM daily_tasks_done WHERE user_id=?").bind(tgUser.id),
   env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
   env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=100 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
   env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=50 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
+  env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=10 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
 ]);
 
 const doneRows = doneData.results;
 const depositOkToday    = depositData.results.length > 0;
 const deposit100OkToday = deposit100Data.results.length > 0;
 const deposit50OkToday  = deposit50Data.results.length > 0;
+const deposit10OkToday  = deposit10Data.results.length > 0;
 
 const doneMap = {};
 for (const r of doneRows) doneMap[r.task_id] = r.done_at;
 
 const DAILY_TASKS = [
   { id: 1, title: "Just check in",            icon: "✅", reward: 0.001, type: "checkin", url: null },
+  { id: 7, title: "Deposit 10+ Gram Today",   icon: "⭐", reward: 5,     type: "deposit", url: null, min_deposit: 10   },
   { id: 6, title: "Deposit 50+ Gram (1 Spot Left)",   icon: "💰", reward: 25,    type: "deposit", url: null, min_deposit: 50   },
   { id: 5, title: "Deposit 100+ Gram (1 Spot Left)",  icon: "🏆", reward: 50,    type: "deposit", url: null, min_deposit: 100  },
   { id: 2, title: "Share with friends",       icon: "👥", reward: 0.001, type: "share",   url: null },
@@ -605,7 +608,7 @@ return json({
     ...t,
     done: (doneMap[t.id] || 0) >= todayStart,
     deposit_ok: t.type === "deposit"
-      ? (t.min_deposit >= 100 ? deposit100OkToday : t.min_deposit >= 50 ? deposit50OkToday : depositOkToday)
+      ? (t.min_deposit >= 100 ? deposit100OkToday : t.min_deposit >= 50 ? deposit50OkToday : t.min_deposit >= 10 ? deposit10OkToday : depositOkToday)
       : null,
   }))
 });
@@ -618,10 +621,10 @@ return json({
         if (isRateLimited(tgUser.id, "daily_task", 2000)) return json({ error: "rate_limited" }, 429);
         const { task_id } = await request.json();
         const tid = Number(task_id);
-        if (![1, 2, 3, 4, 5, 6].includes(tid)) return json({ error: "invalid_task" }, 400);
+        if (![1, 2, 3, 4, 5, 6, 7].includes(tid)) return json({ error: "invalid_task" }, 400);
 
         const todayStart = getTodayUTCStart();
-        const TASK_REWARDS = { 1: 0.001, 2: 0.001, 3: 0.001, 4: 0.01, 5: 50, 6: 25 };
+        const TASK_REWARDS = { 1: 0.001, 2: 0.001, 3: 0.001, 4: 0.01, 5: 50, 6: 25, 7: 5 };
         const reward = TASK_REWARDS[tid] || 0.001;
 
         if (tid === 4) {
