@@ -595,12 +595,13 @@ for (const r of doneRows) doneMap[r.task_id] = r.done_at;
 
 const DAILY_TASKS = [
   { id: 1, title: "Just check in",            icon: "✅", reward: 0.001, type: "checkin", url: null },
+  { id: 2, title: "Share with friends",       icon: "👥", reward: 0.001, type: "share",   url: null },
+  { id: 3, title: "Check For Updates",        icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
+  { id: 8, title: "Check Our Partner Channel", icon: "🤝", reward: 0.001, type: "link",    url: "https://t.me/NextCryptoEarn" },
+  { id: 4, title: "Deposit 0.1+ Gram Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null, min_deposit: 0.1  },
   { id: 7, title: "Deposit 10+ Gram Today",   icon: "⭐", reward: 5,     type: "deposit", url: null, min_deposit: 10   },
   { id: 6, title: "Deposit 50+ Gram (1 Spot Left)",   icon: "💰", reward: 25,    type: "deposit", url: null, min_deposit: 50   },
   { id: 5, title: "Deposit 100+ Gram (1 Spot Left)",  icon: "🏆", reward: 50,    type: "deposit", url: null, min_deposit: 100  },
-  { id: 2, title: "Share with friends",       icon: "👥", reward: 0.001, type: "share",   url: null },
-  { id: 3, title: "Check For Updates",        icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
-  { id: 4, title: "Deposit 0.1+ Gram Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null, min_deposit: 0.1  },
 ];
 
 return json({
@@ -621,10 +622,10 @@ return json({
         if (isRateLimited(tgUser.id, "daily_task", 2000)) return json({ error: "rate_limited" }, 429);
         const { task_id } = await request.json();
         const tid = Number(task_id);
-        if (![1, 2, 3, 4, 5, 6, 7].includes(tid)) return json({ error: "invalid_task" }, 400);
+        if (![1, 2, 3, 4, 5, 6, 7, 8].includes(tid)) return json({ error: "invalid_task" }, 400);
 
         const todayStart = getTodayUTCStart();
-        const TASK_REWARDS = { 1: 0.001, 2: 0.001, 3: 0.001, 4: 0.01, 5: 50, 6: 25, 7: 5 };
+        const TASK_REWARDS = { 1: 0.001, 2: 0.001, 3: 0.001, 4: 0.01, 5: 50, 6: 25, 7: 5, 8: 0.001 };
         const reward = TASK_REWARDS[tid] || 0.001;
 
         if (tid === 4) {
