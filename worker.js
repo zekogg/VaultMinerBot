@@ -286,6 +286,8 @@ function getTodayUTCStart() {
   return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 }
 
+const WITHDRAW_FRIENDS_SINCE = Date.UTC(2026, 6, 9); // 9 July 2026 00:00 UTC — friends referred before this don't count toward withdrawal unlock
+
 function computeMined(user) {
   const now = Date.now();
   const elapsedMs = Math.max(0, now - (user.last_claim || now));
@@ -390,6 +392,7 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
           link: `https://t.me/${env.BOT_USERNAME || "your_bot"}/app?startapp=${tgUser.id}`,
           referral_rewards: meRow?.referral_rewards || 0,
           friends_count: meRow?.friends_count || 0,
+          friends_count_since: results.filter(r => r.created_at >= WITHDRAW_FRIENDS_SINCE).length,
         });
       }
 
@@ -502,6 +505,12 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         if (isRateLimited(tgUser.id, "withdraw", 10000)) return json({ error: "rate_limited" }, 429);
+        const friendsSinceRow = await env.DB.prepare(
+          "SELECT COUNT(*) AS cnt FROM users WHERE referrer_id=? AND created_at>=?"
+        ).bind(tgUser.id, WITHDRAW_FRIENDS_SINCE).first();
+        if ((friendsSinceRow?.cnt || 0) < 5) {
+          return json({ error: "min_5_friends", count: friendsSinceRow?.cnt || 0 }, 400);
+        }
         const { amount, address, memo } = await request.json();
         const amt = Number(amount);
         if (!amt || amt < 0.2 || !address) return json({ error: "invalid_input" }, 400);
