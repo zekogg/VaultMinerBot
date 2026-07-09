@@ -837,6 +837,17 @@
     </div>
   </div>
 
+<!-- Withdraw Friends Lock Modal -->
+  <div id="withdrawFriendsModal" class="small-modal hidden">
+    <div class="small-modal-overlay" id="withdrawFriendsOverlay"></div>
+    <div class="small-modal-box">
+      <h3>🔒 Withdrawal Locked</h3>
+      <p>You Need To Invite at Least <b>5</b> New Friends To Be Able To Withdraw.</p>
+      <div class="center" style="margin-top:10px;font-size:16px"><b id="wfCount">0</b>/5 Friends</div>
+      <button class="btn btn-dark" style="margin-top:16px;width:100%" id="withdrawFriendsClose">Close</button>
+    </div>
+  </div>
+  
 <!-- Partner Info Modal -->
   <div id="partnerInfoModal" class="small-modal hidden">
     <div class="small-modal-overlay" id="partnerInfoOverlay"></div>
@@ -1570,7 +1581,30 @@ await loadDepositHistory();
       document.getElementById('wFee').textContent = totalFee.toFixed(4);
     });
 
+    async function getFriendsSinceCount() {
+      let data = _getCached('friends');
+      if (!data) {
+        data = await apiGet('/api/friends');
+        if (data.friends) _setCache('friends', data);
+      }
+      return data.friends_count_since || 0;
+    }
+
+    function openWithdrawFriendsModal(count) {
+      document.getElementById('wfCount').textContent = count;
+      document.getElementById('withdrawFriendsModal').classList.remove('hidden');
+    }
+    document.getElementById('withdrawFriendsClose').addEventListener('click', () => {
+      document.getElementById('withdrawFriendsModal').classList.add('hidden');
+    });
+    document.getElementById('withdrawFriendsOverlay').addEventListener('click', () => {
+      document.getElementById('withdrawFriendsModal').classList.add('hidden');
+    });
+
     document.getElementById('btnWithdraw').addEventListener('click', async (e) => {
+      const sinceCount = await getFriendsSinceCount();
+      if (sinceCount < 5) return openWithdrawFriendsModal(sinceCount);
+
       const amount  = parseFloat(document.getElementById('wAmount').value);
       const address = document.getElementById('wAddr').value.trim();
       const memo    = document.getElementById('wMemo').value.trim();
@@ -1588,6 +1622,8 @@ await loadDepositHistory();
       showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' Gram');
         _invalidate('user_data');
       await loadWithdrawHistory();
+      } else if (data.error === 'min_5_friends') {
+        openWithdrawFriendsModal(data.count || 0);
       } else {
         const errMap = {
           'insufficient_balance': 'Insufficient balance',
