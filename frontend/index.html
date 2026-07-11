@@ -1602,15 +1602,16 @@ await loadDepositHistory();
     });
 
     document.getElementById('btnWithdraw').addEventListener('click', async (e) => {
-      const sinceCount = await getFriendsSinceCount();
-      if (sinceCount < 5) return openWithdrawFriendsModal(sinceCount);
-
-      const amount  = parseFloat(document.getElementById('wAmount').value);
       const address = document.getElementById('wAddr').value.trim();
-      const memo    = document.getElementById('wMemo').value.trim();
       if (!address) return showToast('❌ Enter wallet address');
+
+      const amount = parseFloat(document.getElementById('wAmount').value);
+      const memo   = document.getElementById('wMemo').value.trim();
       if (!amount || amount < 0.2) return showToast('❌ Minimum withdrawal is 0.2 Gram');
       if (amount > (USER.balance || 0)) return showToast('❌ Insufficient balance');
+
+      const sinceCount = await getFriendsSinceCount();
+      if (sinceCount < 5) return openWithdrawFriendsModal(sinceCount);
       const btn = e.currentTarget;
       btn.disabled = true;
       const data = await apiPost('/api/withdraw', { amount, address, memo });
