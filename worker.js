@@ -1125,7 +1125,7 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
 
   // Worker Cache للقوائم فقط — 5 دقائق مشتركة بين كل المستخدمين
   const cache    = caches.default;
-  const cacheKey = new Request("https://cache.vault/leaderboard-lists");
+  const cacheKey = new Request("https://cache.vault/leaderboard-lists-v2");
   let refTop, depTop;
 
   const cachedRes = await cache.match(cacheKey);
