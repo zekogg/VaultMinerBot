@@ -1125,7 +1125,7 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
 
   // Worker Cache للقوائم فقط — 5 دقائق مشتركة بين كل المستخدمين
   const cache    = caches.default;
-  const cacheKey = new Request("https://cache.vault/leaderboard-lists-v2");
+  const cacheKey = new Request("https://cache.vault/leaderboard-lists");
   let refTop, depTop;
 
   const cachedRes = await cache.match(cacheKey);
@@ -1135,19 +1135,19 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     depTop = cached.deposits;
   } else {
     const [refData, depData] = await env.DB.batch([
-      env.DB.prepare("SELECT id, username, first_name, photo_url, (friends_count - lb_ref_base) AS friends_count FROM users ORDER BY (friends_count - lb_ref_base) DESC LIMIT 20"),
-      env.DB.prepare("SELECT id, username, first_name, photo_url, (deposit_amount - lb_dep_base) AS deposit_amount FROM users ORDER BY (deposit_amount - lb_dep_base) DESC LIMIT 20"),
+      env.DB.prepare("SELECT id, username, first_name, photo_url, friends_count FROM users ORDER BY friends_count DESC LIMIT 20"),
+      env.DB.prepare("SELECT id, username, first_name, photo_url, deposit_amount FROM users ORDER BY deposit_amount DESC LIMIT 20"),
     ]);
     refTop = refData.results;
     depTop = depData.results;
     await cache.put(cacheKey, new Response(
       JSON.stringify({ referrals: refTop, deposits: depTop }),
-      { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=120" } }
+      { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=86400" } }
     ));
   }
 
   // My Rank — كاش لكل مستخدم، متزامن مع نفس نافذة 8h لقوائم leaderboard
-  const RANK_PERIOD_MS = 2 * 60 * 1000;
+  const RANK_PERIOD_MS = 24 * 60 * 60 * 1000;
   const period  = Math.floor(Date.now() / RANK_PERIOD_MS);
   const rankKey = new Request(`https://cache.vault/myrank-${tgUser.id}-${period}`);
 
@@ -1161,10 +1161,10 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
   } else {
     const [myRefResult, myDepResult] = await env.DB.batch([
       env.DB.prepare(
-        "SELECT COUNT(*)+1 AS rank FROM users WHERE (friends_count - lb_ref_base) > COALESCE((SELECT (friends_count - lb_ref_base) FROM users WHERE id=?),-1)"
+        "SELECT COUNT(*)+1 AS rank FROM users WHERE friends_count > COALESCE((SELECT friends_count FROM users WHERE id=?),-1)"
       ).bind(tgUser.id),
       env.DB.prepare(
-        "SELECT COUNT(*)+1 AS rank FROM users WHERE (deposit_amount - lb_dep_base) > COALESCE((SELECT (deposit_amount - lb_dep_base) FROM users WHERE id=?),-1)"
+        "SELECT COUNT(*)+1 AS rank FROM users WHERE deposit_amount > COALESCE((SELECT deposit_amount FROM users WHERE id=?),-1)"
       ).bind(tgUser.id),
     ]);
     myRankReferrals = myRefResult.results[0]?.rank ?? 999;
@@ -1178,8 +1178,8 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     ));
   }
 
-  const PERIOD_MS  = 5 * 24 * 60 * 60 * 1000;
-  const LB_EPOCH   = 1783099881445;
+  const PERIOD_MS  = 141 * 60 * 60 * 1000;
+  const LB_EPOCH   = 1782432000000;
   const now        = Date.now();
   const elapsed    = Math.max(0, now - LB_EPOCH);
   const nextReward = LB_EPOCH + (Math.floor(elapsed / PERIOD_MS) + 1) * PERIOD_MS;
