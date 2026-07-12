@@ -1135,8 +1135,8 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
     depTop = cached.deposits;
   } else {
     const [refData, depData] = await env.DB.batch([
-      env.DB.prepare("SELECT id, username, first_name, photo_url, friends_count FROM users ORDER BY friends_count DESC LIMIT 20"),
-      env.DB.prepare("SELECT id, username, first_name, photo_url, deposit_amount FROM users ORDER BY deposit_amount DESC LIMIT 20"),
+      env.DB.prepare("SELECT id, username, first_name, photo_url, (friends_count - lb_ref_base) AS friends_count FROM users ORDER BY (friends_count - lb_ref_base) DESC LIMIT 20"),
+      env.DB.prepare("SELECT id, username, first_name, photo_url, (deposit_amount - lb_dep_base) AS deposit_amount FROM users ORDER BY (deposit_amount - lb_dep_base) DESC LIMIT 20"),
     ]);
     refTop = refData.results;
     depTop = depData.results;
@@ -1161,10 +1161,10 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
   } else {
     const [myRefResult, myDepResult] = await env.DB.batch([
       env.DB.prepare(
-        "SELECT COUNT(*)+1 AS rank FROM users WHERE friends_count > COALESCE((SELECT friends_count FROM users WHERE id=?),-1)"
+        "SELECT COUNT(*)+1 AS rank FROM users WHERE (friends_count - lb_ref_base) > COALESCE((SELECT (friends_count - lb_ref_base) FROM users WHERE id=?),-1)"
       ).bind(tgUser.id),
       env.DB.prepare(
-        "SELECT COUNT(*)+1 AS rank FROM users WHERE deposit_amount > COALESCE((SELECT deposit_amount FROM users WHERE id=?),-1)"
+        "SELECT COUNT(*)+1 AS rank FROM users WHERE (deposit_amount - lb_dep_base) > COALESCE((SELECT (deposit_amount - lb_dep_base) FROM users WHERE id=?),-1)"
       ).bind(tgUser.id),
     ]);
     myRankReferrals = myRefResult.results[0]?.rank ?? 999;
