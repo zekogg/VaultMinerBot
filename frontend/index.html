@@ -987,6 +987,9 @@
     tg?.ready();
     tg?.expand();
 
+    const IS_ADMIN = tg?.initDataUnsafe?.user?.id === ADMIN_ID;
+    document.getElementById('btnAddTask').style.display = IS_ADMIN ? '' : 'none';
+
     const API = 'https://vaultminerbot.thekingwarrior9.workers.dev';
     let CONFIG = {};
     let USER = {};
