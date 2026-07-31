@@ -585,18 +585,12 @@ const withdrawalId = insertResult.meta.last_row_id;
         if (!user) return json({ error: "user_not_found" }, 404);
 
         const todayStart = getTodayUTCStart();
-const [doneData, depositData, deposit100Data, deposit50Data, deposit10Data] = await env.DB.batch([
+const [doneData, deposit10Data] = await env.DB.batch([
   env.DB.prepare("SELECT task_id, done_at FROM daily_tasks_done WHERE user_id=?").bind(tgUser.id),
-  env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
-  env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=100 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
-  env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=50 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
   env.DB.prepare("SELECT 1 AS found FROM deposits WHERE user_id=? AND amount>=10 AND status='confirmed' AND created_at>=? LIMIT 1").bind(tgUser.id, todayStart),
 ]);
 
 const doneRows = doneData.results;
-const depositOkToday    = depositData.results.length > 0;
-const deposit100OkToday = deposit100Data.results.length > 0;
-const deposit50OkToday  = deposit50Data.results.length > 0;
 const deposit10OkToday  = deposit10Data.results.length > 0;
 
 const doneMap = {};
@@ -607,19 +601,14 @@ const DAILY_TASKS = [
   { id: 2, title: "Share with friends",       icon: "👥", reward: 0.001, type: "share",   url: null },
   { id: 3, title: "Check For Updates",        icon: "📢", reward: 0.001, type: "link",    url: "https://t.me/VaultMinerNews" },
   { id: 8, title: "Check Our Partner Channel", icon: "🤝", reward: 0.001, type: "link",    url: "https://t.me/NextCryptoEarn" },
-  { id: 4, title: "Deposit 0.1+ Gram Today",  icon: "💎", reward: 0.01,  type: "deposit", url: null, min_deposit: 0.1  },
   { id: 7, title: "Deposit 10+ Gram Today",   icon: "⭐", reward: 5,     type: "deposit", url: null, min_deposit: 10   },
-  { id: 6, title: "Deposit 50+ Gram (1 Spot Left)",   icon: "💰", reward: 25,    type: "deposit", url: null, min_deposit: 50   },
-  { id: 5, title: "Deposit 100+ Gram (1 Spot Left)",  icon: "🏆", reward: 50,    type: "deposit", url: null, min_deposit: 100  },
 ];
 
 return json({
   tasks: DAILY_TASKS.map(t => ({
     ...t,
     done: (doneMap[t.id] || 0) >= todayStart,
-    deposit_ok: t.type === "deposit"
-      ? (t.min_deposit >= 100 ? deposit100OkToday : t.min_deposit >= 50 ? deposit50OkToday : t.min_deposit >= 10 ? deposit10OkToday : depositOkToday)
-      : null,
+    deposit_ok: t.type === "deposit" ? deposit10OkToday : null,
   }))
 });
       }
@@ -631,32 +620,11 @@ return json({
         if (isRateLimited(tgUser.id, "daily_task", 2000)) return json({ error: "rate_limited" }, 429);
         const { task_id } = await request.json();
         const tid = Number(task_id);
-        if (![1, 2, 3, 4, 5, 6, 7, 8].includes(tid)) return json({ error: "invalid_task" }, 400);
+        if (![1, 2, 3, 7, 8].includes(tid)) return json({ error: "invalid_task" }, 400);
 
         const todayStart = getTodayUTCStart();
-        const TASK_REWARDS = { 1: 0.001, 2: 0.001, 3: 0.001, 4: 0.01, 5: 50, 6: 25, 7: 5, 8: 0.001 };
+        const TASK_REWARDS = { 1: 0.001, 2: 0.001, 3: 0.001, 7: 5, 8: 0.001 };
         const reward = TASK_REWARDS[tid] || 0.001;
-
-        if (tid === 4) {
-          const todayDep = await env.DB.prepare(
-            "SELECT 1 FROM deposits WHERE user_id=? AND amount>=0.1 AND status='confirmed' AND created_at>=?"
-          ).bind(tgUser.id, todayStart).first();
-          if (!todayDep) return json({ error: "deposit_required" }, 400);
-        }
-
-        if (tid === 5) {
-          const todayDep100 = await env.DB.prepare(
-            "SELECT 1 FROM deposits WHERE user_id=? AND amount>=100 AND status='confirmed' AND created_at>=?"
-          ).bind(tgUser.id, todayStart).first();
-          if (!todayDep100) return json({ error: "deposit_required" }, 400);
-        }
-
-        if (tid === 6) {
-          const todayDep50 = await env.DB.prepare(
-            "SELECT 1 FROM deposits WHERE user_id=? AND amount>=50 AND status='confirmed' AND created_at>=?"
-          ).bind(tgUser.id, todayStart).first();
-          if (!todayDep50) return json({ error: "deposit_required" }, 400);
-        }
 
         if (tid === 7) {
           const todayDep10 = await env.DB.prepare(
@@ -817,9 +785,102 @@ return json({
     ).bind(promo.reward, tgUser.id),
   ]);
 
-  return json({ ok: true, reward: promo.reward });
+return json({ ok: true, reward: promo.reward });
 }
-      
+
+      // ── POST /api/ads/adexium/start ──
+      if (url.pathname === "/api/ads/adexium/start" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { taskId } = await request.json();
+        if (!taskId) return json({ error: "invalid_input" }, 400);
+
+        const todayStart = getTodayUTCStart();
+        const cnt = await env.DB.prepare(
+          "SELECT COUNT(*) AS c FROM ad_views WHERE user_id=? AND network='adexium' AND status='confirmed' AND created_at>=?"
+        ).bind(tgUser.id, todayStart).first();
+        if ((cnt?.c || 0) >= 10) return json({ error: "daily_limit" }, 400);
+
+        try {
+          await env.DB.prepare(
+            "INSERT INTO ad_views(user_id, network, ext_task_id, status, started_at, created_at) VALUES(?,?,?,?,?,?)"
+          ).bind(tgUser.id, "adexium", String(taskId), "pending", Date.now(), Date.now()).run();
+        } catch (e) {
+          return json({ error: "already_started" }, 400);
+        }
+        return json({ ok: true });
+      }
+
+      // ── POST /api/ads/adexium/complete ──
+      if (url.pathname === "/api/ads/adexium/complete" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const { taskId } = await request.json();
+        if (!taskId) return json({ error: "invalid_input" }, 400);
+
+        const row = await env.DB.prepare(
+          "SELECT * FROM ad_views WHERE network='adexium' AND ext_task_id=? AND user_id=?"
+        ).bind(String(taskId), tgUser.id).first();
+        if (!row || row.status !== "pending") return json({ error: "invalid_session" }, 400);
+
+        if (Date.now() - row.started_at < 10000) return json({ error: "too_fast" }, 400);
+
+        let check = null;
+        try {
+          check = await fetch(
+            `https://bid.tgads.live/task/check/${env.ADEXIUM_WIDGET_ID}/${taskId}`
+          ).then(r => r.json());
+        } catch (e) {}
+        if (!check?.done) return json({ error: "not_confirmed" }, 400);
+
+        const upd = await env.DB.prepare(
+          "UPDATE ad_views SET status='confirmed', confirmed_at=? WHERE id=? AND status='pending'"
+        ).bind(Date.now(), row.id).run();
+        if (upd.meta.changes === 0) return json({ error: "already_confirmed" }, 400);
+
+        await env.DB.prepare("UPDATE users SET balance=balance+0.004 WHERE id=?").bind(tgUser.id).run();
+        return json({ ok: true, reward: 0.004 });
+      }
+
+      // ── GET /api/ads/adsgram/reward/:secret — يُستدعى من خادم Adsgram فقط ──
+      if (url.pathname.startsWith("/api/ads/adsgram/reward/") && request.method === "GET") {
+        const token = url.pathname.split("/").pop();
+        if (!env.ADSGRAM_REWARD_SECRET || token !== env.ADSGRAM_REWARD_SECRET) {
+          return json({ error: "forbidden" }, 403);
+        }
+
+        const userId = Number(url.searchParams.get("userid"));
+        if (!userId) return json({ error: "invalid_input" }, 400);
+
+        const todayStart = getTodayUTCStart();
+        const cnt = await env.DB.prepare(
+          "SELECT COUNT(*) AS c FROM ad_views WHERE user_id=? AND network='adsgram' AND status='confirmed' AND created_at>=?"
+        ).bind(userId, todayStart).first();
+        if ((cnt?.c || 0) >= 10) return json({ ok: true });
+
+        const user = await env.DB.prepare("SELECT id FROM users WHERE id=?").bind(userId).first();
+        if (!user) return json({ ok: true });
+
+        await env.DB.prepare(
+          "INSERT INTO ad_views(user_id, network, status, confirmed_at, created_at) VALUES(?,?,?,?,?)"
+        ).bind(userId, "adsgram", "confirmed", Date.now(), Date.now()).run();
+
+        await env.DB.prepare("UPDATE users SET balance=balance+0.004 WHERE id=?").bind(userId).run();
+        return json({ ok: true });
+      }
+
+      // ── GET /api/ads/status ──
+      if (url.pathname === "/api/ads/status" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const todayStart = getTodayUTCStart();
+        const [ag, ax] = await env.DB.batch([
+          env.DB.prepare("SELECT COUNT(*) c FROM ad_views WHERE user_id=? AND network='adsgram' AND status='confirmed' AND created_at>=?").bind(tgUser.id, todayStart),
+          env.DB.prepare("SELECT COUNT(*) c FROM ad_views WHERE user_id=? AND network='adexium' AND status='confirmed' AND created_at>=?").bind(tgUser.id, todayStart),
+        ]);
+        return json({ adsgram: ag.results[0].c, adexium: ax.results[0].c });
+      }
+
       // webhook
       if (url.pathname === "/api/webhook" && request.method === "POST") {
         const update  = await request.json().catch(() => ({}));
