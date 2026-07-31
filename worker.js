@@ -842,45 +842,16 @@ return json({ ok: true, reward: promo.reward });
         return json({ ok: true, reward: 0.004 });
       }
 
-      // ── GET /api/ads/adsgram/reward/:secret — يُستدعى من خادم Adsgram فقط ──
-      if (url.pathname.startsWith("/api/ads/adsgram/reward/") && request.method === "GET") {
-        const token = url.pathname.split("/").pop();
-        if (!env.ADSGRAM_REWARD_SECRET || token !== env.ADSGRAM_REWARD_SECRET) {
-          return json({ error: "forbidden" }, 403);
-        }
-
-        const userId = Number(url.searchParams.get("userid"));
-        if (!userId) return json({ error: "invalid_input" }, 400);
-
-        const todayStart = getTodayUTCStart();
-        const cnt = await env.DB.prepare(
-          "SELECT COUNT(*) AS c FROM ad_views WHERE user_id=? AND network='adsgram' AND status='confirmed' AND created_at>=?"
-        ).bind(userId, todayStart).first();
-        if ((cnt?.c || 0) >= 10) return json({ ok: true });
-
-        const user = await env.DB.prepare("SELECT id FROM users WHERE id=?").bind(userId).first();
-        if (!user) return json({ ok: true });
-
-        await env.DB.prepare(
-          "INSERT INTO ad_views(user_id, network, status, confirmed_at, created_at) VALUES(?,?,?,?,?)"
-        ).bind(userId, "adsgram", "confirmed", Date.now(), Date.now()).run();
-
-        await env.DB.prepare("UPDATE users SET balance=balance+0.004 WHERE id=?").bind(userId).run();
-        return json({ ok: true });
-      }
-
-      // ── GET /api/ads/status ──
+// ── GET /api/ads/status ──
       if (url.pathname === "/api/ads/status" && request.method === "GET") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         const todayStart = getTodayUTCStart();
-        const [ag, ax] = await env.DB.batch([
-          env.DB.prepare("SELECT COUNT(*) c FROM ad_views WHERE user_id=? AND network='adsgram' AND status='confirmed' AND created_at>=?").bind(tgUser.id, todayStart),
-          env.DB.prepare("SELECT COUNT(*) c FROM ad_views WHERE user_id=? AND network='adexium' AND status='confirmed' AND created_at>=?").bind(tgUser.id, todayStart),
-        ]);
-        return json({ adsgram: ag.results[0].c, adexium: ax.results[0].c });
+        const ax = await env.DB.prepare(
+          "SELECT COUNT(*) c FROM ad_views WHERE user_id=? AND network='adexium' AND status='confirmed' AND created_at>=?"
+        ).bind(tgUser.id, todayStart).first();
+        return json({ adexium: ax.c || 0 });
       }
-
       // webhook
       if (url.pathname === "/api/webhook" && request.method === "POST") {
         const update  = await request.json().catch(() => ({}));
