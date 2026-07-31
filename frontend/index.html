@@ -6,7 +6,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tektur:wght@400..900&display=swap" rel="stylesheet">
-  <title>Vault Miner</title>
+<title>Vault Miner</title>
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+  <script src="https://cdn.techtg.space/assets/js/tg-ads-co-widget.min.js"></script>
   <style>
     :root {
       --bg: #000;
@@ -858,6 +860,27 @@
     </div>
   </div>
 
+  <!-- Ad No-Fill Modal -->
+  <div id="adNoFillModal" class="small-modal hidden">
+    <div class="small-modal-overlay" id="adNoFillOverlay"></div>
+    <div class="small-modal-box">
+      <h3>📭 No Ad Available</h3>
+      <p>No ad is available right now. Please try again in a moment.</p>
+      <button class="btn btn-blue" style="margin-top:16px;width:100%" id="adNoFillRetry">🔄 Retry</button>
+      <button class="btn btn-dark" style="margin-top:10px;width:100%" onclick="document.getElementById('adNoFillModal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+
+  <!-- Ad Incomplete Modal -->
+  <div id="adIncompleteModal" class="small-modal hidden">
+    <div class="small-modal-overlay" id="adIncompleteOverlay"></div>
+    <div class="small-modal-box">
+      <h3>⚠️ Ad Not Completed</h3>
+      <p>You need to watch the full ad to receive the reward.</p>
+      <button class="btn btn-dark" style="margin-top:16px;width:100%" onclick="document.getElementById('adIncompleteModal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+
   <!-- Add Task Modal -->
   <div id="addTaskModal" class="small-modal hidden">
     <div class="small-modal-overlay" id="addTaskOverlay"></div>
@@ -1698,6 +1721,168 @@ await loadDepositHistory();
       return el;
     }
 
+    // ======== Ad Tasks (Adsgram / Adexium) ========
+    const AD_TASKS_UI = [
+      { key: 'adsgram', title: 'Watch Adsgram Ad', reward: 0.004 },
+      { key: 'adexium', title: 'Watch Adexium Ad', reward: 0.004 },
+    ];
+
+    const AG_BLOCK_ID = '40578';
+    const AX_WIDGET_ID = '348c62a5-595c-438d-8b8a-3a80e0d3f2c8';
+    let AdsgramCtl = null;
+    let AdexiumAds = null;
+    try { AdsgramCtl = window.Adsgram?.init({ blockId: AG_BLOCK_ID }); } catch {}
+    try { AdexiumAds = new window.AdexiumWidget({ wid: AX_WIDGET_ID, adFormat: 'interstitial' }); } catch {}
+
+    let _adCounts = { adsgram: 0, adexium: 0 };
+    let _adBusy = false;
+
+    function renderAdTask(t) {
+      const el = document.createElement('div');
+      el.className = 'task';
+      el.id = `adtask-${t.key}`;
+      const count = _adCounts[t.key] || 0;
+      const full = count >= 10;
+      el.innerHTML = `
+        <div class="head">
+          <div class="icon">📺</div>
+          <div>
+            <div><b>${t.title}</b></div>
+            <div class="muted small">+${t.reward.toFixed(3)} Gram reward</div>
+          </div>
+        </div>
+        <div class="reward">
+          <div style="display:flex;align-items:center;gap:6px">${t.reward.toFixed(3)} <span class="ton-coin"></span></div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="muted small" id="adcount-${t.key}">${count}/10</span>
+            ${full
+              ? `<span class="muted small">Full</span>`
+              : `<button class="task-btn" id="adbtn-${t.key}" onclick="watchAdTask('${t.key}')">Open</button>`}
+          </div>
+        </div>`;
+      return el;
+    }
+
+    function setAdBtnState(key, text, disabled) {
+      const btn = document.getElementById(`adbtn-${key}`);
+      if (btn) { btn.textContent = text; btn.disabled = !!disabled; }
+    }
+
+    async function refreshAdCounters() {
+      try {
+        const st = await apiGet('/api/ads/status');
+        if (typeof st.adsgram === 'number') _adCounts.adsgram = st.adsgram;
+        if (typeof st.adexium === 'number') _adCounts.adexium = st.adexium;
+        AD_TASKS_UI.forEach(t => {
+          const span = document.getElementById(`adcount-${t.key}`);
+          if (span) span.textContent = `${_adCounts[t.key] || 0}/10`;
+          const btn = document.getElementById(`adbtn-${t.key}`);
+          if (btn && (_adCounts[t.key] || 0) >= 10) btn.outerHTML = `<span class="muted small">Full</span>`;
+        });
+      } catch {}
+    }
+
+    function openAdNoFill(retryNetwork) {
+      document.getElementById('adNoFillModal').classList.remove('hidden');
+      document.getElementById('adNoFillRetry').onclick = () => {
+        document.getElementById('adNoFillModal').classList.add('hidden');
+        if (retryNetwork) watchAdTask(retryNetwork);
+      };
+    }
+    function openAdIncomplete() {
+      document.getElementById('adIncompleteModal').classList.remove('hidden');
+    }
+    document.getElementById('adNoFillOverlay')?.addEventListener('click', () => document.getElementById('adNoFillModal').classList.add('hidden'));
+    document.getElementById('adIncompleteOverlay')?.addEventListener('click', () => document.getElementById('adIncompleteModal').classList.add('hidden'));
+
+    async function pollAdsStatus(network) {
+      const before = _adCounts[network] || 0;
+      for (let i = 0; i < 6; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const st = await apiGet('/api/ads/status');
+        if ((st[network] || 0) > before) {
+          _adCounts = { ..._adCounts, ...st };
+          showToast('✅ +0.004 Gram');
+          await loadUser();
+          refreshAdCounters();
+          return;
+        }
+      }
+      openAdIncomplete();
+    }
+
+    async function watchAdTask(key) {
+      if (_adBusy) return;
+      if ((_adCounts[key] || 0) >= 10) return;
+      _adBusy = true;
+      setAdBtnState(key, '...', true);
+
+      if (key === 'adsgram') {
+        if (!AdsgramCtl) { _adBusy = false; setAdBtnState('adsgram', 'Open', false); openAdNoFill('adexium'); return; }
+
+        let noFillFired = false;
+        const onNoFill = () => { noFillFired = true; };
+        AdsgramCtl.addEventListener?.('onBannerNotFound', onNoFill);
+
+        try {
+          const result = await AdsgramCtl.show();
+          AdsgramCtl.removeEventListener?.('onBannerNotFound', onNoFill);
+          _adBusy = false;
+          setAdBtnState('adsgram', 'Open', false);
+          if (!result?.done) { openAdIncomplete(); return; }
+          _adBusy = true;
+          await pollAdsStatus('adsgram');
+          _adBusy = false;
+        } catch (e) {
+          AdsgramCtl.removeEventListener?.('onBannerNotFound', onNoFill);
+          _adBusy = false;
+          setAdBtnState('adsgram', 'Open', false);
+          if (noFillFired) openAdNoFill('adexium');
+          else openAdIncomplete();
+        }
+        return;
+      }
+
+      if (key === 'adexium') {
+        if (!AdexiumAds) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdNoFill(null); return; }
+
+        const onNoAd = () => {
+          AdexiumAds.off('noAdFound', onNoAd);
+          AdexiumAds.off('adReceived', onReceived);
+          _adBusy = false; setAdBtnState('adexium', 'Open', false);
+          openAdNoFill(null);
+        };
+        const onReceived = async (ad) => {
+          AdexiumAds.off('noAdFound', onNoAd);
+          AdexiumAds.off('adReceived', onReceived);
+          const started = await apiPost('/api/ads/adexium/start', { taskId: ad.id });
+          if (!started.ok) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdIncomplete(); return; }
+          AdexiumAds.displayAd(ad);
+
+          const onDone = async () => {
+            AdexiumAds.off('adPlaybackCompleted', onDone);
+            const data = await apiPost('/api/ads/adexium/complete', { taskId: ad.id });
+            _adBusy = false;
+            setAdBtnState('adexium', 'Open', false);
+            if (data.ok) {
+              USER.balance = (USER.balance || 0) + data.reward;
+              document.getElementById('balance').textContent = USER.balance.toFixed(4);
+              showToast('✅ +' + data.reward.toFixed(3) + ' Gram');
+              _invalidate('user_data');
+              refreshAdCounters();
+            } else {
+              openAdIncomplete();
+            }
+          };
+          AdexiumAds.on('adPlaybackCompleted', onDone);
+        };
+
+        AdexiumAds.on('noAdFound', onNoAd);
+        AdexiumAds.on('adReceived', onReceived);
+        AdexiumAds.requestAd('interstitial');
+      }
+    }
+
     async function loadDailyTasks() {
   let data = _getCached('daily_tasks');
   if (!data) {
@@ -1708,6 +1893,12 @@ await loadDepositHistory();
       const list = document.getElementById('dailyTasksList');
       list.innerHTML = '';
       data.tasks.forEach(t => list.appendChild(renderDailyTask(t)));
+      try {
+        const st = await apiGet('/api/ads/status');
+        if (typeof st.adsgram === 'number') _adCounts.adsgram = st.adsgram;
+        if (typeof st.adexium === 'number') _adCounts.adexium = st.adexium;
+      } catch {}
+      AD_TASKS_UI.forEach(t => list.appendChild(renderAdTask(t)));
     }
 
     function dailyTaskOpen(taskId) {
