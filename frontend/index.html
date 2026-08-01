@@ -1711,7 +1711,7 @@ await loadDepositHistory();
           <div class="icon">${t.icon}</div>
           <div>
             <div><b>${t.title}</b></div>
-            <div class="muted small">+${t.reward.toFixed(3)} Gram reward</div>
+            <div class="muted small">+${t.reward.toFixed(4)} Gram reward</div>
           </div>
         </div>
         <div class="reward">
@@ -1930,7 +1930,7 @@ await loadDepositHistory();
         document.getElementById('balance').textContent = data.balance.toFixed(4);
         if (actionDiv) actionDiv.innerHTML = `<span class="task-done-overlay">${vmT().completed}</span>`;
         _invalidate('daily_tasks');
-        showToast('✅ +' + data.reward.toFixed(3) + ' Gram');
+        showToast('✅ +' + data.reward.toFixed(4) + ' Gram');
       } else {
         const errMap = {
           'already_done_today': 'Already done today',
