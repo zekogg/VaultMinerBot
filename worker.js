@@ -838,8 +838,8 @@ return json({ ok: true, reward: promo.reward });
         ).bind(Date.now(), row.id).run();
         if (upd.meta.changes === 0) return json({ error: "already_confirmed" }, 400);
 
-        await env.DB.prepare("UPDATE users SET balance=balance+0.004 WHERE id=?").bind(tgUser.id).run();
-        return json({ ok: true, reward: 0.004 });
+        await env.DB.prepare("UPDATE users SET balance=balance+0.0005 WHERE id=?").bind(tgUser.id).run();
+        return json({ ok: true, reward: 0.0005 });
       }
       
 // ── GET /api/ads/adsgram/reward/:secret — يُستدعى من خادم Adsgram فقط ──
@@ -865,7 +865,7 @@ return json({ ok: true, reward: promo.reward });
           "INSERT INTO ad_views(user_id, network, status, confirmed_at, created_at) VALUES(?,?,?,?,?)"
         ).bind(userId, "adsgram", "confirmed", Date.now(), Date.now()).run();
 
-        await env.DB.prepare("UPDATE users SET balance=balance+0.004 WHERE id=?").bind(userId).run();
+        await env.DB.prepare("UPDATE users SET balance=balance+0.0005 WHERE id=?").bind(userId).run();
         return json({ ok: true });
       }
 
