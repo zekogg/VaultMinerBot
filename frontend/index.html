@@ -1748,7 +1748,7 @@ await loadDepositHistory();
           <div class="icon">📺</div>
           <div>
             <div><b>${t.title}</b></div>
-            <div class="muted small">+${t.reward.toFixed(3)} Gram reward</div>
+            <div class="muted small">+${t.reward.toFixed(4)} Gram reward</div>
           </div>
         </div>
         <div class="reward">
@@ -1864,7 +1864,7 @@ await loadDepositHistory();
             if (data.ok) {
               USER.balance = (USER.balance || 0) + data.reward;
               document.getElementById('balance').textContent = USER.balance.toFixed(4);
-              showToast('✅ +' + data.reward.toFixed(3) + ' Gram');
+              showToast('✅ +' + data.reward.toFixed(4) + ' Gram');
               _invalidate('user_data');
               refreshAdCounters();
             } else {
