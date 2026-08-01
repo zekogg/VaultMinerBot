@@ -1012,13 +1012,6 @@
     const IS_ADMIN = tg?.initDataUnsafe?.user?.id === ADMIN_ID;
     document.getElementById('btnAddTask').style.display = IS_ADMIN ? '' : 'none';
 
-    if (IS_ADMIN) {
-      const erudaScript = document.createElement('script');
-      erudaScript.src = 'https://cdn.jsdelivr.net/npm/eruda';
-      erudaScript.onload = () => window.eruda.init();
-      document.body.appendChild(erudaScript);
-    }
-
     const API = 'https://vaultminerbot.thekingwarrior9.workers.dev';
     let CONFIG = {};
     let USER = {};
@@ -1824,7 +1817,7 @@ if (key === 'adexium') {
           AdexiumAds.off('noAdFound', onNoAd);
           AdexiumAds.off('adReceived', onReceived);
           _adBusy = false; setAdBtnState('adexium', 'Open', false);
-          openAdNoFill(null);
+          openAdNoFill('adexium');
         };
         const onReceived = async (ad) => {
           AdexiumAds.off('noAdFound', onNoAd);
