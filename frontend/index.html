@@ -1723,8 +1723,8 @@ await loadDepositHistory();
 
     // ======== Ad Tasks (Adsgram / Adexium) ========
     const AD_TASKS_UI = [
-      { key: 'adsgram', title: 'Watch Adsgram Ad', reward: 0.004 },
-      { key: 'adexium', title: 'Watch Adexium Ad', reward: 0.004 },
+      { key: 'adsgram', title: 'Watch Adsgram Ad', reward: 0.0005 },
+      { key: 'adexium', title: 'Watch Adexium Ad', reward: 0.0005 },
     ];
 
     const AG_BLOCK_ID = '40578';
@@ -1802,7 +1802,7 @@ await loadDepositHistory();
         const st = await apiGet('/api/ads/status');
         if ((st[network] || 0) > before) {
           _adCounts = { ..._adCounts, ...st };
-          showToast('✅ +0.004 Gram');
+          showToast('✅ +0.0005 Gram');
           await loadUser();
           refreshAdCounters();
           return;
