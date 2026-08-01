@@ -1830,10 +1830,7 @@ if (key === 'adexium') {
         const onReceived = async (ad) => {
           AdexiumAds.off('noAdFound', onNoAd);
           AdexiumAds.off('adReceived', onReceived);
-          let taskId = null;
-          try {
-            taskId = new URL(ad.notificationUrl).searchParams.get('imp_id');
-          } catch {}
+          const taskId = ad.id;
           if (!taskId) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdIncomplete(); return; }
           ad._taskId = taskId;
           const started = await apiPost('/api/ads/adexium/start', { taskId });
