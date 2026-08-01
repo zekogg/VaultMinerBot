@@ -1830,13 +1830,19 @@ if (key === 'adexium') {
         const onReceived = async (ad) => {
           AdexiumAds.off('noAdFound', onNoAd);
           AdexiumAds.off('adReceived', onReceived);
-          const started = await apiPost('/api/ads/adexium/start', { taskId: ad.id });
+          let taskId = null;
+          try {
+            taskId = new URL(ad.notificationUrl).searchParams.get('imp_id');
+          } catch {}
+          if (!taskId) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdIncomplete(); return; }
+          ad._taskId = taskId;
+          const started = await apiPost('/api/ads/adexium/start', { taskId });
           if (!started.ok) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdIncomplete(); return; }
           AdexiumAds.displayAd(ad);
 
           const onDone = async () => {
             AdexiumAds.off('adPlaybackCompleted', onDone);
-            const data = await apiPost('/api/ads/adexium/complete', { taskId: ad.id });
+            const data = await apiPost('/api/ads/adexium/complete', { taskId: ad._taskId });
             _adBusy = false;
             setAdBtnState('adexium', 'Open', false);
             if (data.ok) {
