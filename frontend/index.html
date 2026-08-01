@@ -1452,8 +1452,6 @@ async function loadTopMiners() {
       if (currentMined < 0.1) return showToast('❌ Minimum collect is 0.1 Gram');
       const btn = e.currentTarget;
       btn.disabled = true;
-      const adOk = await showAdsgramAd();
-      if (!adOk) { btn.disabled = false; showToast('❌ Watch the ad to collect'); return; }
       const data = await apiPost('/api/claim');
       btn.disabled = false;
       if (data.ok) {
@@ -1642,8 +1640,6 @@ await loadDepositHistory();
       if (sinceCount < 5) return openWithdrawFriendsModal(sinceCount);
       const btn = e.currentTarget;
       btn.disabled = true;
-      const adOk = await showAdsgramAd();
-      if (!adOk) { btn.disabled = false; showToast('❌ Watch the ad to withdraw'); return; }
       const data = await apiPost('/api/withdraw', { amount, address, memo });
       btn.disabled = false;
       if (data.ok) {
@@ -1734,16 +1730,6 @@ await loadDepositHistory();
     const AG_BLOCK_ID = '40578';
     let AdsgramCtl = null;
     try { AdsgramCtl = window.Adsgram?.init({ blockId: AG_BLOCK_ID }); } catch {}
-
-    async function showAdsgramAd() {
-      if (!AdsgramCtl) { showToast('❌ Ad not available'); return false; }
-      try {
-        const result = await AdsgramCtl.show();
-        return !!result?.done;
-      } catch (e) {
-        return false;
-      }
-    }
 
     const AX_WIDGET_ID = '348c62a5-595c-438d-8b8a-3a80e0d3f2c8';
     let AdexiumAds = null;
@@ -1918,15 +1904,7 @@ await loadDepositHistory();
       const actionDiv = document.getElementById(`dt-action-${taskId}`);
 
       if (t.type === 'checkin') {
-        if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" disabled>...</button>`;
-        showAdsgramAd().then(ok => {
-          if (ok) {
-            if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">${vmT().claim}</button>`;
-          } else {
-            if (actionDiv) actionDiv.innerHTML = `<button class="task-btn" onclick="dailyTaskOpen(${taskId})">${vmT().opened}</button>`;
-            showToast('❌ Watch the ad to continue');
-          }
-        });
+        if (actionDiv) actionDiv.innerHTML = `<button class="task-btn green" onclick="claimDailyTask(${taskId})">Claim</button>`;
         return;
       }
       if (t.type === 'link' && t.url) {
