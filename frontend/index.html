@@ -776,8 +776,21 @@
   </section>
 
   <!-- Withdraw -->
-  <section id="page-withdraw" class="page hidden">
+<section id="page-withdraw" class="page hidden">
     <h2>Withdrawal of funds</h2>
+    <div id="withdrawAdsTask" class="task">
+      <div class="head">
+        <div class="icon">📺</div>
+        <div>
+          <div><b>Watch 10 Ads to Withdraw</b></div>
+          <div class="muted small">Unlock withdrawal by watching ads</div>
+        </div>
+      </div>
+      <div class="reward">
+        <span class="muted small" id="wAdsCount">0/10</span>
+        <button class="task-btn" id="btnWatchWithdrawAd">Open</button>
+      </div>
+    </div>
     <div class="card">
       <div class="label">Amount:</div>
       <input class="input" id="wAmount" type="number" step="0.0001" value="0.2" min="0.2">
@@ -787,7 +800,7 @@
       <input class="input" id="wMemo" value="Vault Miner">
       <div class="label">Amount to be received:</div>
       <div class="field"><b><span id="wNet">0.0000</span></b> Gram</div>
-      <button class="btn btn-blue" id="btnWithdraw" style="margin-top:16px">Withdraw</button>
+      <button class="btn btn-blue" id="btnWithdraw" style="margin-top:16px;opacity:0.4;pointer-events:none" disabled>Withdraw</button>
       <div class="muted small" style="margin-top:10px">Fee ( 15 % + 0.1 Gram ): <b><span id="wFee">-</span> Gram</b></div>
       <div class="muted small">Withdrawal time: <b>~5 minutes - Up To 12h</b></div>
     </div>
@@ -1438,7 +1451,7 @@ async function loadTopMiners() {
         switchTab(btn.dataset.tab);
         if (btn.dataset.tab === 'friends')  loadFriends();
         if (btn.dataset.tab === 'deposit')  loadDepositHistory();
-        if (btn.dataset.tab === 'withdraw') loadWithdrawHistory();
+        if (btn.dataset.tab === 'withdraw') { loadWithdrawHistory(); loadWithdrawAdsStatus(); }
         if (btn.dataset.tab === 'tasks') { loadDailyTasks(); loadPartnerTasks(); }
       });
     });
@@ -1649,8 +1662,13 @@ await loadDepositHistory();
       showToast('✅ Withdrawal sent: ' + data.net.toFixed(4) + ' Gram');
         _invalidate('user_data');
       await loadWithdrawHistory();
+      _withdrawAdsCount = 0;
+      updateWithdrawAdsUI();
       } else if (data.error === 'min_5_friends') {
         openWithdrawFriendsModal(data.count || 0);
+      } else if (data.error === 'ads_required') {
+        loadWithdrawAdsStatus();
+        showToast('❌ Watch 10 ads to unlock withdrawal');
       } else {
         const errMap = {
           'insufficient_balance': 'Insufficient balance',
@@ -1810,6 +1828,59 @@ await loadDepositHistory();
       }
       openAdIncomplete();
     }
+
+    // ======== Withdraw Unlock — Watch 10 Adsgram Ads ========
+    let _withdrawAdsCount = 0;
+    let _wAdBusy = false;
+
+    function updateWithdrawAdsUI() {
+      const countEl = document.getElementById('wAdsCount');
+      const taskEl  = document.getElementById('withdrawAdsTask');
+      const wBtn    = document.getElementById('btnWithdraw');
+      if (countEl) countEl.textContent = `${_withdrawAdsCount}/10`;
+      if (_withdrawAdsCount >= 10) {
+        if (taskEl) taskEl.classList.add('hidden');
+        if (wBtn) { wBtn.disabled = false; wBtn.style.opacity = '1'; wBtn.style.pointerEvents = 'auto'; }
+      } else {
+        if (taskEl) taskEl.classList.remove('hidden');
+        if (wBtn) { wBtn.disabled = true; wBtn.style.opacity = '0.4'; wBtn.style.pointerEvents = 'none'; }
+      }
+    }
+
+    async function loadWithdrawAdsStatus() {
+      try {
+        const data = await apiGet('/api/withdraw/ads-status');
+        _withdrawAdsCount = data.count || 0;
+      } catch { _withdrawAdsCount = 0; }
+      updateWithdrawAdsUI();
+    }
+
+    document.getElementById('btnWatchWithdrawAd').addEventListener('click', async () => {
+      if (_wAdBusy || _withdrawAdsCount >= 10) return;
+      if (!AdsgramCtl) { openAdNoFill(null); return; }
+      _wAdBusy = true;
+      const btn = document.getElementById('btnWatchWithdrawAd');
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const result = await AdsgramCtl.show();
+        btn.disabled = false;
+        btn.textContent = 'Open';
+        if (!result?.done) { _wAdBusy = false; openAdIncomplete(); return; }
+        const data = await apiPost('/api/withdraw/watch-ad');
+        _wAdBusy = false;
+        if (data.ok) {
+          _withdrawAdsCount = data.count;
+          updateWithdrawAdsUI();
+          showToast('✅ ' + _withdrawAdsCount + '/10');
+        }
+      } catch (e) {
+        _wAdBusy = false;
+        btn.disabled = false;
+        btn.textContent = 'Open';
+        openAdNoFill(null);
+      }
+    });
 
     async function watchAdTask(key) {
       if (_adBusy) return;
