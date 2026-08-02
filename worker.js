@@ -522,6 +522,7 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
         if (!user) return json({ error: "user_not_found" }, 404);
         if (user.balance < amt) return json({ error: "insufficient_balance" }, 400);
+        if ((user.withdraw_ads_watched || 0) < 10) return json({ error: "ads_required", count: user.withdraw_ads_watched || 0 }, 400);
         const memoText = (memo && memo.trim()) ? memo.trim() : "Vault Miner";
         let displayName;
         if (tgUser.username)        displayName = `@${tgUser.username}`;
@@ -537,6 +538,8 @@ if (deductResult.meta.changes === 0)
 const insertResult = await env.DB.prepare(
   "INSERT INTO withdrawals(user_id,amount,fee,net,address,memo,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)"
 ).bind(tgUser.id, amt, totalFee, net, address, memoText, Date.now()).run();
+
+await env.DB.prepare("UPDATE users SET withdraw_ads_watched=0 WHERE id=?").bind(tgUser.id).run();
 
 const withdrawalId = insertResult.meta.last_row_id;
         const notifText =
@@ -879,6 +882,28 @@ return json({ ok: true, reward: promo.reward });
           env.DB.prepare("SELECT COUNT(*) c FROM ad_views WHERE user_id=? AND network='adexium' AND status='confirmed' AND created_at>=?").bind(tgUser.id, todayStart),
         ]);
         return json({ adsgram: ag.results[0].c, adexium: ax.results[0].c });
+      }
+
+      // ── POST /api/withdraw/watch-ad — Adsgram only, progress toward withdrawal unlock ──
+      if (url.pathname === "/api/withdraw/watch-ad" && request.method === "POST") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        if (isRateLimited(tgUser.id, "withdraw_ad", 2000)) return json({ error: "rate_limited" }, 429);
+
+        await env.DB.prepare(
+          "UPDATE users SET withdraw_ads_watched = MIN(COALESCE(withdraw_ads_watched,0)+1, 10) WHERE id=?"
+        ).bind(tgUser.id).run();
+
+        const row = await env.DB.prepare("SELECT withdraw_ads_watched FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ ok: true, count: row?.withdraw_ads_watched || 0 });
+      }
+
+      // ── GET /api/withdraw/ads-status ──
+      if (url.pathname === "/api/withdraw/ads-status" && request.method === "GET") {
+        const tgUser = await auth(request, env);
+        if (!tgUser) return json({ error: "unauthorized" }, 401);
+        const row = await env.DB.prepare("SELECT withdraw_ads_watched FROM users WHERE id=?").bind(tgUser.id).first();
+        return json({ count: row?.withdraw_ads_watched || 0 });
       }
       
       // webhook
