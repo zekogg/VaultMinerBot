@@ -8,7 +8,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Tektur:wght@400..900&display=swap" rel="stylesheet">
 <title>Vault Miner</title>
 <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-  <script src="https://cdn.techtg.space/assets/js/tg-ads-co-widget.min.js"></script>
   <style>
     :root {
       --bg: #000;
@@ -1739,28 +1738,29 @@ await loadDepositHistory();
       return el;
     }
 
-    // ======== Ad Tasks (Adsgram / Adexium) ========
+    // ======== Ad Tasks (Adsgram) ========
     const AD_TASKS_UI = [
-      { key: 'adsgram', title: 'Watch Adsgram Ad', reward: 0.0005 },
-      { key: 'adexium', title: 'Watch Adexium Ad', reward: 0.0005 },
+      { key: 'adsgram', title: 'Watch Adsgram Ad', reward: 0.00025, max: 20 },
     ];
+    function adMax(key) {
+      const t = AD_TASKS_UI.find(x => x.key === key);
+      return t?.max || 10;
+    }
 
     const AG_BLOCK_ID = '40578';
     let AdsgramCtl = null;
     try { AdsgramCtl = window.Adsgram?.init({ blockId: AG_BLOCK_ID }); } catch {}
-
-    const AX_WIDGET_ID = '348c62a5-595c-438d-8b8a-3a80e0d3f2c8';
-    let AdexiumAds = null;
-    try { AdexiumAds = new window.AdexiumWidget({ wid: AX_WIDGET_ID, adFormat: 'interstitial' }); } catch {}
-    let _adCounts = { adsgram: 0, adexium: 0 };
+    let _adCounts = { adsgram: 0 };
     let _adBusy = false;
+    let _lastAdWatchTs = 0;
 
     function renderAdTask(t) {
       const el = document.createElement('div');
       el.className = 'task';
       el.id = `adtask-${t.key}`;
       const count = _adCounts[t.key] || 0;
-      const full = count >= 10;
+      const max = adMax(t.key);
+      const full = count >= max;
       el.innerHTML = `
         <div class="head">
           <div class="icon">📺</div>
@@ -1772,7 +1772,7 @@ await loadDepositHistory();
         <div class="reward">
           <div style="display:flex;align-items:center;gap:6px">${t.reward.toFixed(3)} <span class="ton-coin"></span></div>
           <div style="display:flex;align-items:center;gap:10px">
-            <span class="muted small" id="adcount-${t.key}">${count}/10</span>
+            <span class="muted small" id="adcount-${t.key}">${count}/${max}</span>
             ${full
               ? `<span class="muted small">Full</span>`
               : `<button class="task-btn" id="adbtn-${t.key}" onclick="watchAdTask('${t.key}')">Open</button>`}
@@ -1790,12 +1790,12 @@ await loadDepositHistory();
       try {
         const st = await apiGet('/api/ads/status');
         if (typeof st.adsgram === 'number') _adCounts.adsgram = st.adsgram;
-        if (typeof st.adexium === 'number') _adCounts.adexium = st.adexium;
         AD_TASKS_UI.forEach(t => {
+          const max = adMax(t.key);
           const span = document.getElementById(`adcount-${t.key}`);
-          if (span) span.textContent = `${_adCounts[t.key] || 0}/10`;
+          if (span) span.textContent = `${_adCounts[t.key] || 0}/${max}`;
           const btn = document.getElementById(`adbtn-${t.key}`);
-          if (btn && (_adCounts[t.key] || 0) >= 10) btn.outerHTML = `<span class="muted small">Full</span>`;
+          if (btn && (_adCounts[t.key] || 0) >= max) btn.outerHTML = `<span class="muted small">Full</span>`;
         });
       } catch {}
     }
@@ -1884,7 +1884,11 @@ await loadDepositHistory();
 
     async function watchAdTask(key) {
       if (_adBusy) return;
-      if ((_adCounts[key] || 0) >= 10) return;
+      if ((_adCounts[key] || 0) >= adMax(key)) return;
+      if (Date.now() - _lastAdWatchTs < 5000) {
+        showToast('⏳ Please wait a few seconds before the next ad');
+        return;
+      }
       _adBusy = true;
       setAdBtnState(key, '...', true);
 
@@ -1896,6 +1900,7 @@ await loadDepositHistory();
           _adBusy = false;
           setAdBtnState('adsgram', 'Open', false);
           if (!result?.done) { openAdIncomplete(); return; }
+          _lastAdWatchTs = Date.now();
           _adBusy = true;
           await pollAdsStatus('adsgram');
           _adBusy = false;
@@ -1905,49 +1910,6 @@ await loadDepositHistory();
           openAdNoFill('adsgram');
         }
         return;
-      }
-
-      if (key === 'adexium') {
-        if (!AdexiumAds) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdNoFill(null); return; }
-
-        const onNoAd = () => {
-          AdexiumAds.off('noAdFound', onNoAd);
-          AdexiumAds.off('adReceived', onReceived);
-          _adBusy = false; setAdBtnState('adexium', 'Open', false);
-          openAdNoFill('adexium');
-        };
-        const onReceived = async (ad) => {
-          AdexiumAds.off('noAdFound', onNoAd);
-          AdexiumAds.off('adReceived', onReceived);
-          let taskId = null;
-          try { taskId = new URL(ad.notificationUrl).searchParams.get('imp_id'); } catch {}
-          if (!taskId) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdIncomplete(); return; }
-          ad._taskId = taskId;
-          const started = await apiPost('/api/ads/adexium/start', { taskId });
-          if (!started.ok) { _adBusy = false; setAdBtnState('adexium', 'Open', false); openAdIncomplete(); return; }
-          AdexiumAds.displayAd(ad);
-
-          const onDone = async () => {
-            AdexiumAds.off('adPlaybackCompleted', onDone);
-            const data = await apiPost('/api/ads/adexium/complete', { taskId: ad._taskId });
-            _adBusy = false;
-            setAdBtnState('adexium', 'Open', false);
-            if (data.ok) {
-              USER.balance = (USER.balance || 0) + data.reward;
-              document.getElementById('balance').textContent = USER.balance.toFixed(4);
-              showToast('✅ +' + data.reward.toFixed(4) + ' Gram');
-              _invalidate('user_data');
-              refreshAdCounters();
-            } else {
-              openAdIncomplete();
-            }
-          };
-          AdexiumAds.on('adPlaybackCompleted', onDone);
-        };
-
-        AdexiumAds.on('noAdFound', onNoAd);
-        AdexiumAds.on('adReceived', onReceived);
-        AdexiumAds.requestRewardedAd('interstitial');
       }
     }
 
@@ -1964,7 +1926,6 @@ await loadDepositHistory();
       try {
         const st = await apiGet('/api/ads/status');
         if (typeof st.adsgram === 'number') _adCounts.adsgram = st.adsgram;
-        if (typeof st.adexium === 'number') _adCounts.adexium = st.adexium;
       } catch {}
       AD_TASKS_UI.forEach(t => list.appendChild(renderAdTask(t)));
     }
