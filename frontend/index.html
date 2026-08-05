@@ -1766,11 +1766,11 @@ await loadDepositHistory();
           <div class="icon">📺</div>
           <div>
             <div><b>${t.title}</b></div>
-            <div class="muted small">+${t.reward.toFixed(4)} Gram reward</div>
+            <div class="muted small">+${t.reward.toFixed(5)} Gram reward</div>
           </div>
         </div>
         <div class="reward">
-          <div style="display:flex;align-items:center;gap:6px">${t.reward.toFixed(3)} <span class="ton-coin"></span></div>
+          <div style="display:flex;align-items:center;gap:6px">${t.reward.toFixed(5)} <span class="ton-coin"></span></div>
           <div style="display:flex;align-items:center;gap:10px">
             <span class="muted small" id="adcount-${t.key}">${count}/${max}</span>
             ${full
@@ -1815,12 +1815,13 @@ await loadDepositHistory();
 
     async function pollAdsStatus(network) {
       const before = _adCounts[network] || 0;
+      const reward = AD_TASKS_UI.find(t => t.key === network)?.reward || 0;
       for (let i = 0; i < 6; i++) {
         await new Promise(r => setTimeout(r, 3000));
         const st = await apiGet('/api/ads/status');
         if ((st[network] || 0) > before) {
           _adCounts = { ..._adCounts, ...st };
-          showToast('✅ +0.0005 Gram');
+          showToast('✅ +' + reward.toFixed(5) + ' Gram');
           await loadUser();
           refreshAdCounters();
           return;
