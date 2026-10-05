@@ -755,22 +755,14 @@ return json({
         try { new URL(taskUrl); } catch { return json({ error: "invalid_url" }, 400); }
 
         const clk = Number(clicks);
-        if (clk < 250) return json({ error: "min_clicks_250" }, 400);
+        if (!Number.isInteger(clk) || clk < 100) return json({ error: "min_clicks_100" }, 400);
 
-      const cost = clk / 500;
-
-        const deductResult = await env.DB.prepare(
-          "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?"
-        ).bind(cost, tgUser.id, cost).run();
-
-        if (deductResult.meta.changes === 0)
-          return json({ error: "insufficient_balance" }, 400);
-
+        // إضافة المهمة مجانية — لا يُخصم أي رصيد
         await env.DB.prepare(
           "INSERT INTO partner_tasks(owner_id, title, url, clicks_target, cost, created_at) VALUES(?,?,?,?,?,?)"
-        ).bind(tgUser.id, title.slice(0, 80), taskUrl.slice(0, 200), clk, cost, Date.now()).run();
+        ).bind(tgUser.id, title.slice(0, 80), taskUrl.slice(0, 200), clk, 0, Date.now()).run();
 
-        return json({ ok: true, cost });
+        return json({ ok: true });
       }
 
       // ── POST /api/promo/apply ──
