@@ -226,7 +226,7 @@
       font-size: 22px;
     }
 
-.task .reward, .top-miner .reward {
+.task .reward {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -236,19 +236,6 @@
     }
 
     .check { color: var(--green); font-size: 20px; }
-
-    .top-miner {
-      background: var(--panel);
-      border-radius: 12px;
-      padding: 14px;
-      margin-top: 10px;
-    }
-
-    .top-miner .head {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
 
     .avatar {
       width: 38px;
@@ -729,13 +716,6 @@
       <button class="btn btn-dark" id="btnWithdrawIncome">Withdraw<br>income</button>
     </div>
 
-    <h2 style="margin-top:22px;display:flex;align-items:center;gap:8px">
-  <svg xmlns="http://www.w3.org/2000/svg" height="25px" viewBox="0 -960 960 960" width="25px" fill="#e3e3e3" style="flex:0 0 auto;">
-    <path d="M202-160v-66.67h556V-160H202Zm-.67-142.67L149-632.33q-4 1.33-7.83 1.83-3.84.5-7.84.5-22.33 0-37.83-15.5T80-683.33q0-22.34 15.5-38.17 15.5-15.83 37.83-15.83 22.34 0 38.17 15.83 15.83 15.83 15.83 38.17 0 7.66-2.16 15-2.17 7.33-6.17 13l140.33 62.66L455-779q-13-6.67-21-19.33-8-12.67-8-28.34 0-22.33 15.83-37.83Q457.67-880 480-880q22.33 0 38.17 15.5Q534-849 534-826.67q0 15.67-8 28.34-8 12.66-21 19.33l135.67 186.33L781-655.33q-4-5.67-6.17-13-2.16-7.34-2.16-15 0-22.34 15.83-38.17 15.83-15.83 37.5-15.83 22.33 0 38.17 15.83Q880-705.67 880-683.33q0 22.33-15.83 37.83Q848.33-630 826-630q-4 0-7.5-.83-3.5-.84-7.5-2.17l-52.33 330.33H201.33ZM258-369.33h444l30-191-113.67 50.66-138.33-191-138.33 191L228-560.33l30 191Zm222 0Z"/>
-  </svg>
-  <span>Top miners</span>
-</h2>
-<div id="topList"></div>
   </section>
 
 <!-- Tasks -->
@@ -1118,30 +1098,6 @@ function _invalidate(key) {
   try { localStorage.removeItem('vm_' + key); } catch {}
 }
 
-// ── Cache until next UTC midnight (للبيانات اليومية المشتركة) ──
-function _nextUTCMidnight() {
-  const d = new Date();
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0);
-}
-
-function _getCachedUntil(key) {
-  try {
-    const raw = localStorage.getItem('vm_' + key);
-    if (!raw) return null;
-    const { data, expiresAt } = JSON.parse(raw);
-    if (Date.now() >= expiresAt) {
-      localStorage.removeItem('vm_' + key);
-      return null;
-    }
-    return data;
-  } catch { return null; }
-}
-
-function _setCacheUntil(key, data, expiresAt) {
-  try {
-    localStorage.setItem('vm_' + key, JSON.stringify({ data, expiresAt }));
-  } catch {}
-}
     
 // ======== Profile Circle & Modal ========
     function setupProfilePhoto() {
@@ -1313,40 +1269,6 @@ async function loadUser() {
   hideSplash(false); // fade out بعد تحميل البيانات
 }
 
-// ======== Load Top Miners ========
-async function loadTopMiners() {
-  let data = _getCachedUntil('top_miners');
-  if (!data) {
-    data = await apiGet('/api/top-miners');
-    if (data.miners) _setCacheUntil('top_miners', data, _nextUTCMidnight());
-  }
-  if (!data.miners) return;
-
-  const list = document.getElementById('topList');
-  if (data.miners.length === 0) {
-    list.innerHTML = `<div class="empty">${vmT().noTop}</div>`;
-    return;
-  }
-
-  list.innerHTML = data.miners.map(u => {
-    const name  = u.first_name || `User ${u.id}`;
-    const uname = u.username ? '@' + u.username : '';
-    return `
-      <div class="top-miner">
-        <div class="head">
-          ${lbAvatarEl(u)}
-          <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(name)}</div>
-            <div class="muted small">${escapeHtml(uname)}</div>
-          </div>
-        </div>
-        <div class="reward">
-          <div class="muted small">Profit in 24 hours</div>
-          <div style="display:flex;align-items:center;gap:6px"><b>${u.profit24.toFixed(4)}</b> <span class="ton-coin"></span></div>
-        </div>
-      </div>`;
-  }).join('');
-}
     
     // ======== Load Friends ========
     async function loadFriends() {
@@ -2391,7 +2313,6 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
     
     // ======== Start ========
     loadUser();
-    loadTopMiners();
   </script>
   
 <script>
@@ -2405,7 +2326,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'Language',
       rewards:'Rewards', acc:'Accumulated income', profit24:'Profit in 24 hours', rate:'Daily rate',
       depAmount:'Deposit amount', collect:'Collect income', speed:'Increase speed', withdrawIncome:'Withdraw income',
-      topMiners:'Top miners', promo:'Promo code', apply:'Apply', promoPh:'Enter the promo code',
+      promo:'Promo code', apply:'Apply', promoPh:'Enter the promo code',
       daily:'Daily tasks', partner:'Partner Tasks', addTask:'+ Add A Task',
       friends:'Friends', list:'📋 List', inviteText:'Invite your friends and receive 10% of their deposit, as well as bonuses for the number of friends!',
       inviteFriend:'👤 Invite a friend', copy:'📋 Copy', friendsRewards:'Friends Rewards', claim:'Claim', min1:'Min. 1 Gram',
@@ -2421,7 +2342,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ Add A Partner Task', title:'Title', link:'Link', clicks:'Clicks', cost:'Cost', publish:'Publish', cancel:'Cancel',
       invitedHeader:'👥 Invited Friends',
       leaderboard:'Leaderboard', referrals:'👥 Referrals', depositsTab:'💎 Deposits', rewardCredited:'Rewards Credited in', updatesDaily:'Updates daily · 00:00 UTC',
-      yourRank:'Your rank', prize:'Prize', loading:'Loading...', failedLoad:'Failed to load', noData:'No data yet', noTop:'No top miners yet', noFriends:'No friends invited yet',
+      yourRank:'Your rank', prize:'Prize', loading:'Loading...', failedLoad:'Failed to load', noData:'No data yet', noFriends:'No friends invited yet',
       opened:'Open', full:'Full', completed:'✅ Completed',
       addTaskBtn:'+ Add A Task',
 
@@ -2467,7 +2388,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'Язык',
       rewards:'Награды', acc:'Накопленный доход', profit24:'Прибыль за 24 часа', rate:'Дневная ставка',
       depAmount:'Сумма депозита', collect:'Собрать доход', speed:'Увеличить скорость', withdrawIncome:'Вывести доход',
-      topMiners:'Топ майнеров', promo:'Промокод', apply:'Применить', promoPh:'Введите промокод',
+      promo:'Промокод', apply:'Применить', promoPh:'Введите промокод',
       daily:'Ежедневные задания', partner:'Партнёрские задания', addTask:'+ Добавить задание',
       friends:'Друзья', list:'📋 Список', inviteText:'Приглашайте друзей и получайте 10% от их депозита, а также бонусы за количество друзей!',
       inviteFriend:'👤 Пригласить друга', copy:'📋 Копировать', friendsRewards:'Награды за друзей', claim:'Получить', min1:'Мин. 1 Gram',
@@ -2483,7 +2404,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ Добавить партнёрское задание', title:'Название', link:'Ссылка', clicks:'Клики', cost:'Стоимость', publish:'Опубликовать', cancel:'Отмена',
       invitedHeader:'👥 Приглашённые друзья',
       leaderboard:'Таблица лидеров', referrals:'👥 Рефералы', depositsTab:'💎 Депозиты', rewardCredited:'Награда будет начислена через', updatesDaily:'Обновляется ежедневно · 00:00 UTC',
-      yourRank:'Ваш ранг', prize:'Приз', loading:'Загрузка...', failedLoad:'Не удалось загрузить', noData:'Данных пока нет', noTop:'Пока нет топ-майнеров', noFriends:'Пока нет приглашённых друзей',
+      yourRank:'Ваш ранг', prize:'Приз', loading:'Загрузка...', failedLoad:'Не удалось загрузить', noData:'Данных пока нет', noFriends:'Пока нет приглашённых друзей',
       opened:'Открыть', full:'Полно', completed:'✅ Выполнено',
       addTaskBtn:'+ Добавить задание',
 
@@ -2502,7 +2423,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'Idioma',
       rewards:'Recompensas', acc:'Renda acumulada', profit24:'Lucro em 24 horas', rate:'Taxa diária',
       depAmount:'Valor do depósito', collect:'Coletar renda', speed:'Aumentar velocidade', withdrawIncome:'Sacar renda',
-      topMiners:'Top miners', promo:'Código promocional', apply:'Aplicar', promoPh:'Digite o código promocional',
+      promo:'Código promocional', apply:'Aplicar', promoPh:'Digite o código promocional',
       daily:'Tarefas diárias', partner:'Tarefas de parceiros', addTask:'+ Adicionar tarefa',
       friends:'Amigos', list:'📋 Lista', inviteText:'Convide seus amigos e receba 10% do depósito deles, além de bônus pela quantidade de amigos!',
       inviteFriend:'👤 Convidar um amigo', copy:'📋 Copiar', friendsRewards:'Recompensas dos amigos', claim:'Resgatar', min1:'Mín. 1 Gram',
@@ -2518,7 +2439,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ Adicionar tarefa de parceiro', title:'Título', link:'Link', clicks:'Cliques', cost:'Custo', publish:'Publicar', cancel:'Cancelar',
       invitedHeader:'👥 Amigos convidados',
       leaderboard:'Ranking', referrals:'👥 Indicações', depositsTab:'💎 Depósitos', rewardCredited:'Recompensas serão creditadas em', updatesDaily:'Atualizado diariamente · 00:00 UTC',
-      yourRank:'Seu ranking', prize:'Prêmio', loading:'Carregando...', failedLoad:'Falha ao carregar', noData:'Sem dados ainda', noTop:'Ainda sem top miners', noFriends:'Ainda sem amigos convidados',
+      yourRank:'Seu ranking', prize:'Prêmio', loading:'Carregando...', failedLoad:'Falha ao carregar', noData:'Sem dados ainda', noFriends:'Ainda sem amigos convidados',
       opened:'Abrir', full:'Cheio', completed:'✅ Concluído',
       addTaskBtn:'+ Adicionar tarefa',
 
@@ -2537,7 +2458,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'Idioma',
       rewards:'Recompensas', acc:'Ingreso acumulado', profit24:'Ganancia en 24 horas', rate:'Tasa diaria',
       depAmount:'Monto del depósito', collect:'Cobrar ingresos', speed:'Aumentar velocidad', withdrawIncome:'Retirar ingresos',
-      topMiners:'Top miners', promo:'Código promocional', apply:'Aplicar', promoPh:'Introduce el código promocional',
+      promo:'Código promocional', apply:'Aplicar', promoPh:'Introduce el código promocional',
       daily:'Tareas diarias', partner:'Tareas de socios', addTask:'+ Añadir tarea',
       friends:'Amigos', list:'📋 Lista', inviteText:'Invita a tus amigos y recibe el 10% de su depósito, además de bonos por la cantidad de amigos!',
       inviteFriend:'👤 Invitar a un amigo', copy:'📋 Copiar', friendsRewards:'Recompensas de amigos', claim:'Reclamar', min1:'Mín. 1 Gram',
@@ -2553,7 +2474,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ Añadir tarea de socio', title:'Título', link:'Enlace', clicks:'Clics', cost:'Costo', publish:'Publicar', cancel:'Cancelar',
       invitedHeader:'👥 Amigos invitados',
       leaderboard:'Clasificación', referrals:'👥 Referidos', depositsTab:'💎 Depósitos', rewardCredited:'Las recompensas se acreditarán en', updatesDaily:'Se actualiza diariamente · 00:00 UTC',
-      yourRank:'Tu rango', prize:'Premio', loading:'Cargando...', failedLoad:'No se pudo cargar', noData:'Aún no hay datos', noTop:'Aún no hay top miners', noFriends:'Aún no hay amigos invitados',
+      yourRank:'Tu rango', prize:'Premio', loading:'Cargando...', failedLoad:'No se pudo cargar', noData:'Aún no hay datos', noFriends:'Aún no hay amigos invitados',
       opened:'Abrir', full:'Lleno', completed:'✅ Completado',
       addTaskBtn:'+ Añadir tarea',
 
@@ -2572,7 +2493,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'Dil',
       rewards:'Ödüller', acc:'Biriken gelir', profit24:'24 saatlik kazanç', rate:'Günlük oran',
       depAmount:'Yatırım miktarı', collect:'Geliri topla', speed:'Hızı artır', withdrawIncome:'Geliri çek',
-      topMiners:'Top miners', promo:'Promosyon kodu', apply:'Uygula', promoPh:'Promosyon kodunu girin',
+      promo:'Promosyon kodu', apply:'Uygula', promoPh:'Promosyon kodunu girin',
       daily:'Günlük görevler', partner:'Ortak görevler', addTask:'+ Görev ekle',
       friends:'Arkadaşlar', list:'📋 Liste', inviteText:'Arkadaşlarını davet et ve yatırımlarının %10’unu, ayrıca arkadaş sayısına göre bonusları kazan!',
       inviteFriend:'👤 Arkadaş davet et', copy:'📋 Kopyala', friendsRewards:'Arkadaş ödülleri', claim:'Talep et', min1:'Min. 1 Gram',
@@ -2588,7 +2509,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ Ortak görev ekle', title:'Başlık', link:'Bağlantı', clicks:'Tıklama', cost:'Maliyet', publish:'Yayınla', cancel:'İptal',
       invitedHeader:'👥 Davet edilen arkadaşlar',
       leaderboard:'Liderlik tablosu', referrals:'👥 Referanslar', depositsTab:'💎 Yatırımlar', rewardCredited:'Ödüller şu sürede kredilendirilecek', updatesDaily:'Günlük güncellenir · 00:00 UTC',
-      yourRank:'Sıralaman', prize:'Ödül', loading:'Yükleniyor...', failedLoad:'Yüklenemedi', noData:'Henüz veri yok', noTop:'Henüz top miner yok', noFriends:'Henüz davet edilen arkadaş yok',
+      yourRank:'Sıralaman', prize:'Ödül', loading:'Yükleniyor...', failedLoad:'Yüklenemedi', noData:'Henüz veri yok', noFriends:'Henüz davet edilen arkadaş yok',
       opened:'Aç', full:'Dolu', completed:'✅ Tamamlandı',
       addTaskBtn:'+ Görev ekle',
 
@@ -2607,7 +2528,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'Ngôn ngữ',
       rewards:'Phần thưởng', acc:'Thu nhập tích lũy', profit24:'Lợi nhuận 24 giờ', rate:'Tỷ lệ hàng ngày',
       depAmount:'Số tiền nạp', collect:'Thu nhập', speed:'Tăng tốc độ', withdrawIncome:'Rút thu nhập',
-      topMiners:'Top miners', promo:'Mã khuyến mãi', apply:'Áp dụng', promoPh:'Nhập mã khuyến mãi',
+      promo:'Mã khuyến mãi', apply:'Áp dụng', promoPh:'Nhập mã khuyến mãi',
       daily:'Nhiệm vụ hằng ngày', partner:'Nhiệm vụ đối tác', addTask:'+ Thêm nhiệm vụ',
       friends:'Bạn bè', list:'📋 Danh sách', inviteText:'Mời bạn bè và nhận 10% tiền nạp của họ, cùng với tiền thưởng theo số lượng bạn bè!',
       inviteFriend:'👤 Mời bạn bè', copy:'📋 Sao chép', friendsRewards:'Thưởng bạn bè', claim:'Nhận', min1:'Tối thiểu 1 Gram',
@@ -2623,7 +2544,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ Thêm nhiệm vụ đối tác', title:'Tiêu đề', link:'Liên kết', clicks:'Lượt nhấp', cost:'Chi phí', publish:'Đăng', cancel:'Hủy',
       invitedHeader:'👥 Bạn bè đã mời',
       leaderboard:'Bảng xếp hạng', referrals:'👥 Giới thiệu', depositsTab:'💎 Nạp tiền', rewardCredited:'Phần thưởng sẽ được cộng trong', updatesDaily:'Cập nhật hằng ngày · 00:00 UTC',
-      yourRank:'Xếp hạng của bạn', prize:'Giải thưởng', loading:'Đang tải...', failedLoad:'Tải thất bại', noData:'Chưa có dữ liệu', noTop:'Chưa có top miners', noFriends:'Chưa có bạn bè được mời',
+      yourRank:'Xếp hạng của bạn', prize:'Giải thưởng', loading:'Đang tải...', failedLoad:'Tải thất bại', noData:'Chưa có dữ liệu', noFriends:'Chưa có bạn bè được mời',
       opened:'Mở', full:'Đầy', completed:'✅ Hoàn thành',
       addTaskBtn:'+ Thêm nhiệm vụ',
 
@@ -2642,7 +2563,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'Мова',
       rewards:'Нагороди', acc:'Накопичений дохід', profit24:'Прибуток за 24 години', rate:'Добова ставка',
       depAmount:'Сума депозиту', collect:'Зібрати дохід', speed:'Підвищити швидкість', withdrawIncome:'Вивести дохід',
-      topMiners:'Top miners', promo:'Промокод', apply:'Застосувати', promoPh:'Введіть промокод',
+      promo:'Промокод', apply:'Застосувати', promoPh:'Введіть промокод',
       daily:'Щоденні завдання', partner:'Партнерські завдання', addTask:'+ Додати завдання',
       friends:'Друзі', list:'📋 Список', inviteText:'Запрошуйте друзів і отримуйте 10% від їхнього депозиту, а також бонуси за кількість друзів!',
       inviteFriend:'👤 Запросити друга', copy:'📋 Копіювати', friendsRewards:'Нагороди за друзів', claim:'Отримати', min1:'Мін. 1 Gram',
@@ -2658,7 +2579,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ Додати партнерське завдання', title:'Заголовок', link:'Посилання', clicks:'Кліки', cost:'Вартість', publish:'Опублікувати', cancel:'Скасувати',
       invitedHeader:'👥 Запрошені друзі',
       leaderboard:'Таблиця лідерів', referrals:'👥 Реферали', depositsTab:'💎 Депозити', rewardCredited:'Нагорода буде зарахована через', updatesDaily:'Оновлюється щодня · 00:00 UTC',
-      yourRank:'Ваш ранг', prize:'Приз', loading:'Завантаження...', failedLoad:'Не вдалося завантажити', noData:'Даних поки немає', noTop:'Поки немає топ-майнерів', noFriends:'Поки немає запрошених друзів',
+      yourRank:'Ваш ранг', prize:'Приз', loading:'Завантаження...', failedLoad:'Не вдалося завантажити', noData:'Даних поки немає', noFriends:'Поки немає запрошених друзів',
       opened:'Відкрити', full:'Повний', completed:'✅ Виконано',
       addTaskBtn:'+ Додати завдання',
 
@@ -2677,7 +2598,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       ui:'اللغة',
       rewards:'المكافآت', acc:'الدخل المتراكم', profit24:'ربح 24 ساعة', rate:'المعدل اليومي',
       depAmount:'مبلغ الإيداع', collect:'جمع الدخل', speed:'زيادة السرعة', withdrawIncome:'سحب الدخل',
-      topMiners:'أفضل المعدّنين', promo:'رمز الترويج', apply:'تطبيق', promoPh:'أدخل رمز الترويج',
+      promo:'رمز الترويج', apply:'تطبيق', promoPh:'أدخل رمز الترويج',
       daily:'المهام اليومية', partner:'مهام الشركاء', addTask:'+ إضافة مهمة',
       friends:'الأصدقاء', list:'📋 القائمة', inviteText:'ادعُ أصدقاءك واحصل على 10% من إيداعهم، بالإضافة إلى مكافآت حسب عدد الأصدقاء!',
       inviteFriend:'👤 دعوة صديق', copy:'📋 نسخ', friendsRewards:'مكافآت الأصدقاء', claim:'استلام', min1:'الحد الأدنى 1 Gram',
@@ -2693,7 +2614,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       addPartnerTitle:'➕ إضافة مهمة شريك', title:'العنوان', link:'الرابط', clicks:'النقرات', cost:'التكلفة', publish:'نشر', cancel:'إلغاء',
       invitedHeader:'👥 الأصدقاء المدعوون',
       leaderboard:'لوحة المتصدرين', referrals:'👥 الإحالات', depositsTab:'💎 الإيداعات', rewardCredited:'سيتم إضافة المكافآت خلال', updatesDaily:'يتم التحديث يوميًا · 00:00 UTC',
-      yourRank:'ترتيبك', prize:'الجائزة', loading:'جارٍ التحميل...', failedLoad:'فشل التحميل', noData:'لا توجد بيانات بعد', noTop:'لا يوجد أفضل معدّنين بعد', noFriends:'لا يوجد أصدقاء مدعوون بعد',
+      yourRank:'ترتيبك', prize:'الجائزة', loading:'جارٍ التحميل...', failedLoad:'فشل التحميل', noData:'لا توجد بيانات بعد', noFriends:'لا يوجد أصدقاء مدعوون بعد',
       opened:'فتح', full:'ممتلئ', completed:'✅ مكتمل',
       addTaskBtn:'+ إضافة مهمة',
 
@@ -2822,7 +2743,6 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
     setText('#btnCollect', t.collect);
     setText('#btnIncreaseSpeed', t.speed);
     setText('#btnWithdrawIncome', t.withdrawIncome);
-    setText('#page-mining h2 span', t.topMiners);
 
     const taskH2 = $$('#page-tasks h2');
     if (taskH2[0]) taskH2[0].textContent = t.promo;
@@ -2932,7 +2852,6 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
     $$('.empty').forEach(el => {
       if (el.textContent.includes('No deposits')) el.textContent = t.noDep;
       if (el.textContent.includes('No payments')) el.textContent = t.noPay;
-      if (el.textContent.includes('No top miners yet')) el.textContent = t.noTop;
       if (el.textContent.includes('No friends invited yet')) el.textContent = t.noFriends;
       if (el.textContent.includes('No data yet')) el.textContent = t.noData;
       if (el.textContent.includes('Loading...')) el.textContent = t.loading;
