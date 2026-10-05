@@ -815,7 +815,7 @@
     <h2>Deposit</h2>
     <div class="card">
       <div class="label">Deposit amount:</div>
-      <input class="input" id="depInput" type="number" step="0.0001" value="1" min="0.1">
+      <input class="input" id="depInput" type="number" step="0.0001" value="1" min="1">
       <div class="label">The mining speed will increase by:</div>
       <div class="field">+ <b><span id="depGain">0.1000</span></b> Gram per day</div>
       <div class="wdb-note hidden" id="depBonusNote"></div>
@@ -854,7 +854,7 @@
     <h2>Withdrawal of funds</h2>
     <div class="card">
       <div class="label">Amount:</div>
-      <input class="input" id="wAmount" type="number" step="0.0001" value="0.2" min="0.2">
+      <input class="input" id="wAmount" type="number" step="0.0001" value="1" min="1">
       <div class="label">Address (Gram~Ton):</div>
       <input class="input" id="wAddr" placeholder="UQ...">
       <div class="label">Tag/comment/memo (optional):</div>
@@ -1571,7 +1571,7 @@ async function loadUser() {
 
     document.getElementById('btnDeposit').addEventListener('click', async () => {
   const val = parseFloat(document.getElementById('depInput').value) || 0;
-  if (val < 0.1) return showToast('❌ Minimum deposit is 0.1 Gram');
+  if (val < 1) return showToast('❌ Minimum deposit is 1 Gram');
   const data = await apiGet('/api/deposit');
       document.getElementById('depAddr').textContent = data.address;
       document.getElementById('depMemo').textContent = data.memo;
@@ -1643,7 +1643,7 @@ await loadDepositHistory();
 
       if (data.status === 'below_minimum') {
         stopPolling();
-        showToast('❌ Min deposit 0.1 Gram — sent: ' + parseFloat(data.amount).toFixed(4) + ' Gram');
+        showToast('❌ Min deposit 1 Gram — sent: ' + parseFloat(data.amount).toFixed(4) + ' Gram');
         return;
       }
 
@@ -1729,7 +1729,7 @@ await loadDepositHistory();
 
       const amount = parseFloat(document.getElementById('wAmount').value);
       const memo   = document.getElementById('wMemo').value.trim();
-      if (!amount || amount < 0.2) return showToast('❌ Minimum withdrawal is 0.2 Gram');
+      if (!amount || amount < 1) return showToast('❌ Minimum withdrawal is 1 Gram');
       if (amount > (USER.balance || 0)) return showToast('❌ Insufficient balance');
 
       const sinceCount = await getFriendsSinceCount();
@@ -2363,11 +2363,11 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
         connErr:'❌ Connection error',
         depositConfirmed:'✅ Deposit confirmed',
         txProcessed:'⚠️ Transaction already processed',
-        minDepSent:'❌ Min deposit 0.1 Gram',
+        minDepSent:'❌ Min deposit 1 Gram',
         txNotFound:'❌ Transaction not found. Try again.',
         reinvested:'✅ Reinvested successfully!',
         enterAddr:'❌ Enter wallet address',
-        minWithdraw:'❌ Minimum withdrawal is 0.2 Gram',
+        minWithdraw:'❌ Minimum withdrawal is 1 Gram',
         insufficient:'❌ Insufficient balance',
         withdrew:'✅ Withdrawal sent',
         enterPromo:'❌ Enter a promo code',
@@ -2375,7 +2375,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
         loadFriends:'❌ Load friends first',
         fillAll:'❌ Fill in all fields',
         minClicks:'❌ Minimum 250 clicks',
-        minDep:'❌ Minimum deposit is 0.1 Gram',
+        minDep:'❌ Minimum deposit is 1 Gram',
         already:'❌ Already claimed',
         notEnough:'❌ Not enough friends yet',
         linkCopied:'✅ Link copied!'
@@ -2414,7 +2414,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       depositNav:'Депозит',
       withdrawNav:'Вывод',
 
-      toast:{ claimed:'✅ Получено', bonusClaimed:'✅ Бонус получен', minimum1:'❌ Минимум 1 Gram для получения', minimum01collect:'❌ Минимум для сбора: 0.1 Gram', collected:'✅ Собрано', copiedAddr:'✅ Адрес скопирован!', copiedMemo:'✅ Комментарий скопирован!', connErr:'❌ Ошибка соединения', depositConfirmed:'✅ Депозит подтверждён', txProcessed:'⚠️ Транзакция уже обработана', minDepSent:'❌ Мин. депозит 0.1 Gram', txNotFound:'❌ Транзакция не найдена. Попробуйте ещё раз.', reinvested:'✅ Реинвест выполнен!', enterAddr:'❌ Введите адрес кошелька', minWithdraw:'❌ Минимальный вывод 0.2 Gram', insufficient:'❌ Недостаточно баланса', withdrew:'✅ Вывод отправлен', enterPromo:'❌ Введите промокод', promoApplied:'✅ Промокод применён!', loadFriends:'❌ Сначала загрузите друзей', fillAll:'❌ Заполните все поля', minClicks:'❌ Минимум 250 кликов', minDep:'❌ Минимальный депозит 0.1 Gram', already:'❌ Уже получено', notEnough:'❌ Недостаточно друзей', linkCopied:'✅ Ссылка скопирована!' }
+      toast:{ claimed:'✅ Получено', bonusClaimed:'✅ Бонус получен', minimum1:'❌ Минимум 1 Gram для получения', minimum01collect:'❌ Минимум для сбора: 0.1 Gram', collected:'✅ Собрано', copiedAddr:'✅ Адрес скопирован!', copiedMemo:'✅ Комментарий скопирован!', connErr:'❌ Ошибка соединения', depositConfirmed:'✅ Депозит подтверждён', txProcessed:'⚠️ Транзакция уже обработана', minDepSent:'❌ Мин. депозит 1 Gram', txNotFound:'❌ Транзакция не найдена. Попробуйте ещё раз.', reinvested:'✅ Реинвест выполнен!', enterAddr:'❌ Введите адрес кошелька', minWithdraw:'❌ Минимальный вывод 1 Gram', insufficient:'❌ Недостаточно баланса', withdrew:'✅ Вывод отправлен', enterPromo:'❌ Введите промокод', promoApplied:'✅ Промокод применён!', loadFriends:'❌ Сначала загрузите друзей', fillAll:'❌ Заполните все поля', minClicks:'❌ Минимум 250 кликов', minDep:'❌ Минимальный депозит 1 Gram', already:'❌ Уже получено', notEnough:'❌ Недостаточно друзей', linkCopied:'✅ Ссылка скопирована!' }
     },
 
     br: {
@@ -2449,7 +2449,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       depositNav:'Depósito',
       withdrawNav:'Saque',
 
-      toast:{ claimed:'✅ Resgatado', bonusClaimed:'✅ Bônus resgatado', minimum1:'❌ Mínimo de 1 Gram para resgatar', minimum01collect:'❌ Mínimo para coletar: 0.1 Gram', collected:'✅ Coletado', copiedAddr:'✅ Endereço copiado!', copiedMemo:'✅ Comentário copiado!', connErr:'❌ Erro de conexão', depositConfirmed:'✅ Depósito confirmado', txProcessed:'⚠️ Transação já processada', minDepSent:'❌ Depósito mínimo 0.1 Gram', txNotFound:'❌ Transação não encontrada. Tente novamente.', reinvested:'✅ Reinvestido com sucesso!', enterAddr:'❌ Digite o endereço da carteira', minWithdraw:'❌ Saque mínimo 0.2 Gram', insufficient:'❌ Saldo insuficiente', withdrew:'✅ Saque enviado', enterPromo:'❌ Digite um código promocional', promoApplied:'✅ Promo aplicado!', loadFriends:'❌ Carregue os amigos primeiro', fillAll:'❌ Preencha todos os campos', minClicks:'❌ Mínimo de 250 cliques', minDep:'❌ Depósito mínimo 0.1 Gram', already:'❌ Já resgatado', notEnough:'❌ Ainda não há amigos suficientes', linkCopied:'✅ Link copiado!' }
+      toast:{ claimed:'✅ Resgatado', bonusClaimed:'✅ Bônus resgatado', minimum1:'❌ Mínimo de 1 Gram para resgatar', minimum01collect:'❌ Mínimo para coletar: 0.1 Gram', collected:'✅ Coletado', copiedAddr:'✅ Endereço copiado!', copiedMemo:'✅ Comentário copiado!', connErr:'❌ Erro de conexão', depositConfirmed:'✅ Depósito confirmado', txProcessed:'⚠️ Transação já processada', minDepSent:'❌ Depósito mínimo 1 Gram', txNotFound:'❌ Transação não encontrada. Tente novamente.', reinvested:'✅ Reinvestido com sucesso!', enterAddr:'❌ Digite o endereço da carteira', minWithdraw:'❌ Saque mínimo 1 Gram', insufficient:'❌ Saldo insuficiente', withdrew:'✅ Saque enviado', enterPromo:'❌ Digite um código promocional', promoApplied:'✅ Promo aplicado!', loadFriends:'❌ Carregue os amigos primeiro', fillAll:'❌ Preencha todos os campos', minClicks:'❌ Mínimo de 250 cliques', minDep:'❌ Depósito mínimo 1 Gram', already:'❌ Já resgatado', notEnough:'❌ Ainda não há amigos suficientes', linkCopied:'✅ Link copiado!' }
     },
 
     es: {
@@ -2484,7 +2484,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       depositNav:'Depósito',
       withdrawNav:'Retiro',
 
-      toast:{ claimed:'✅ Reclamado', bonusClaimed:'✅ Bono reclamado', minimum1:'❌ Mínimo 1 Gram para reclamar', minimum01collect:'❌ Mínimo para cobrar: 0.1 Gram', collected:'✅ Cobrado', copiedAddr:'✅ Dirección copiada!', copiedMemo:'✅ Comentario copiado!', connErr:'❌ Error de conexión', depositConfirmed:'✅ Depósito confirmado', txProcessed:'⚠️ Transacción ya procesada', minDepSent:'❌ Depósito mínimo 0.1 Gram', txNotFound:'❌ Transacción no encontrada. Inténtalo de nuevo.', reinvested:'✅ Reinvertido con éxito!', enterAddr:'❌ Introduce la dirección de la billetera', minWithdraw:'❌ Retiro mínimo 0.2 Gram', insufficient:'❌ Saldo insuficiente', withdrew:'✅ Retiro enviado', enterPromo:'❌ Introduce un código promocional', promoApplied:'✅ ¡Promo aplicada!', loadFriends:'❌ Carga primero los amigos', fillAll:'❌ Completa todos los campos', minClicks:'❌ Mínimo 250 clics', minDep:'❌ Depósito mínimo 0.1 Gram', already:'❌ Ya reclamado', notEnough:'❌ Todavía no hay suficientes amigos', linkCopied:'✅ Enlace copiado!' }
+      toast:{ claimed:'✅ Reclamado', bonusClaimed:'✅ Bono reclamado', minimum1:'❌ Mínimo 1 Gram para reclamar', minimum01collect:'❌ Mínimo para cobrar: 0.1 Gram', collected:'✅ Cobrado', copiedAddr:'✅ Dirección copiada!', copiedMemo:'✅ Comentario copiado!', connErr:'❌ Error de conexión', depositConfirmed:'✅ Depósito confirmado', txProcessed:'⚠️ Transacción ya procesada', minDepSent:'❌ Depósito mínimo 1 Gram', txNotFound:'❌ Transacción no encontrada. Inténtalo de nuevo.', reinvested:'✅ Reinvertido con éxito!', enterAddr:'❌ Introduce la dirección de la billetera', minWithdraw:'❌ Retiro mínimo 1 Gram', insufficient:'❌ Saldo insuficiente', withdrew:'✅ Retiro enviado', enterPromo:'❌ Introduce un código promocional', promoApplied:'✅ ¡Promo aplicada!', loadFriends:'❌ Carga primero los amigos', fillAll:'❌ Completa todos los campos', minClicks:'❌ Mínimo 250 clics', minDep:'❌ Depósito mínimo 1 Gram', already:'❌ Ya reclamado', notEnough:'❌ Todavía no hay suficientes amigos', linkCopied:'✅ Enlace copiado!' }
     },
 
     tr: {
@@ -2519,7 +2519,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       depositNav:'Yatır',
       withdrawNav:'Çekim',
 
-      toast:{ claimed:'✅ Talep edildi', bonusClaimed:'✅ Bonus talep edildi', minimum1:'❌ Talep için en az 1 Gram', minimum01collect:'❌ Toplama için minimum 0.1 Gram', collected:'✅ Toplandı', copiedAddr:'✅ Adres kopyalandı!', copiedMemo:'✅ Yorum kopyalandı!', connErr:'❌ Bağlantı hatası', depositConfirmed:'✅ Yatırım onaylandı', txProcessed:'⚠️ İşlem zaten işlendi', minDepSent:'❌ Min yatırım 0.1 Gram', txNotFound:'❌ İşlem bulunamadı. Tekrar deneyin.', reinvested:'✅ Yeniden yatırım başarılı!', enterAddr:'❌ Cüzdan adresini girin', minWithdraw:'❌ Minimum çekim 0.2 Gram', insufficient:'❌ Yetersiz bakiye', withdrew:'✅ Çekim gönderildi', enterPromo:'❌ Promosyon kodu girin', promoApplied:'✅ Promo uygulandı!', loadFriends:'❌ Önce arkadaşları yükleyin', fillAll:'❌ Tüm alanları doldurun', minClicks:'❌ Minimum 250 tıklama', minDep:'❌ Minimum yatırım 0.1 Gram', already:'❌ Zaten talep edildi', notEnough:'❌ Henüz yeterli arkadaş yok', linkCopied:'✅ Bağlantı kopyalandı!' }
+      toast:{ claimed:'✅ Talep edildi', bonusClaimed:'✅ Bonus talep edildi', minimum1:'❌ Talep için en az 1 Gram', minimum01collect:'❌ Toplama için minimum 0.1 Gram', collected:'✅ Toplandı', copiedAddr:'✅ Adres kopyalandı!', copiedMemo:'✅ Yorum kopyalandı!', connErr:'❌ Bağlantı hatası', depositConfirmed:'✅ Yatırım onaylandı', txProcessed:'⚠️ İşlem zaten işlendi', minDepSent:'❌ Min yatırım 1 Gram', txNotFound:'❌ İşlem bulunamadı. Tekrar deneyin.', reinvested:'✅ Yeniden yatırım başarılı!', enterAddr:'❌ Cüzdan adresini girin', minWithdraw:'❌ Minimum çekim 1 Gram', insufficient:'❌ Yetersiz bakiye', withdrew:'✅ Çekim gönderildi', enterPromo:'❌ Promosyon kodu girin', promoApplied:'✅ Promo uygulandı!', loadFriends:'❌ Önce arkadaşları yükleyin', fillAll:'❌ Tüm alanları doldurun', minClicks:'❌ Minimum 250 tıklama', minDep:'❌ Minimum yatırım 1 Gram', already:'❌ Zaten talep edildi', notEnough:'❌ Henüz yeterli arkadaş yok', linkCopied:'✅ Bağlantı kopyalandı!' }
     },
 
     vi: {
@@ -2554,7 +2554,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       depositNav:'Nạp',
       withdrawNav:'Rút',
 
-      toast:{ claimed:'✅ Đã nhận', bonusClaimed:'✅ Đã nhận thưởng', minimum1:'❌ Tối thiểu 1 Gram để nhận', minimum01collect:'❌ Tối thiểu để thu: 0.1 Gram', collected:'✅ Đã thu', copiedAddr:'✅ Đã sao chép địa chỉ!', copiedMemo:'✅ Đã sao chép bình luận!', connErr:'❌ Lỗi kết nối', depositConfirmed:'✅ Đã xác nhận nạp', txProcessed:'⚠️ Giao dịch đã được xử lý', minDepSent:'❌ Nạp tối thiểu 0.1 Gram', txNotFound:'❌ Không tìm thấy giao dịch. Thử lại.', reinvested:'✅ Tái đầu tư thành công!', enterAddr:'❌ Nhập địa chỉ ví', minWithdraw:'❌ Rút tối thiểu 0.2 Gram', insufficient:'❌ Không đủ số dư', withdrew:'✅ Đã gửi lệnh rút', enterPromo:'❌ Nhập mã khuyến mãi', promoApplied:'✅ Đã áp dụng mã!', loadFriends:'❌ Hãy tải danh sách bạn bè trước', fillAll:'❌ Điền đầy đủ các trường', minClicks:'❌ Tối thiểu 250 lượt nhấp', minDep:'❌ Nạp tối thiểu 0.1 Gram', already:'❌ Đã nhận rồi', notEnough:'❌ Chưa đủ bạn bè', linkCopied:'✅ Đã sao chép liên kết!' }
+      toast:{ claimed:'✅ Đã nhận', bonusClaimed:'✅ Đã nhận thưởng', minimum1:'❌ Tối thiểu 1 Gram để nhận', minimum01collect:'❌ Tối thiểu để thu: 0.1 Gram', collected:'✅ Đã thu', copiedAddr:'✅ Đã sao chép địa chỉ!', copiedMemo:'✅ Đã sao chép bình luận!', connErr:'❌ Lỗi kết nối', depositConfirmed:'✅ Đã xác nhận nạp', txProcessed:'⚠️ Giao dịch đã được xử lý', minDepSent:'❌ Nạp tối thiểu 1 Gram', txNotFound:'❌ Không tìm thấy giao dịch. Thử lại.', reinvested:'✅ Tái đầu tư thành công!', enterAddr:'❌ Nhập địa chỉ ví', minWithdraw:'❌ Rút tối thiểu 1 Gram', insufficient:'❌ Không đủ số dư', withdrew:'✅ Đã gửi lệnh rút', enterPromo:'❌ Nhập mã khuyến mãi', promoApplied:'✅ Đã áp dụng mã!', loadFriends:'❌ Hãy tải danh sách bạn bè trước', fillAll:'❌ Điền đầy đủ các trường', minClicks:'❌ Tối thiểu 250 lượt nhấp', minDep:'❌ Nạp tối thiểu 1 Gram', already:'❌ Đã nhận rồi', notEnough:'❌ Chưa đủ bạn bè', linkCopied:'✅ Đã sao chép liên kết!' }
     },
 
     uk: {
@@ -2589,7 +2589,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       depositNav:'Депозит',
       withdrawNav:'Виведення',
 
-      toast:{ claimed:'✅ Отримано', bonusClaimed:'✅ Бонус отримано', minimum1:'❌ Мінімум 1 Gram для отримання', minimum01collect:'❌ Мінімум для збору: 0.1 Gram', collected:'✅ Зібрано', copiedAddr:'✅ Адресу скопійовано!', copiedMemo:'✅ Коментар скопійовано!', connErr:'❌ Помилка з’єднання', depositConfirmed:'✅ Депозит підтверджено', txProcessed:'⚠️ Транзакцію вже оброблено', minDepSent:'❌ Мінімальний депозит 0.1 Gram', txNotFound:'❌ Транзакцію не знайдено. Спробуйте ще раз.', reinvested:'✅ Реінвест успішний!', enterAddr:'❌ Введіть адресу гаманця', minWithdraw:'❌ Мінімальне виведення 0.2 Gram', insufficient:'❌ Недостатньо балансу', withdrew:'✅ Виведення надіслано', enterPromo:'❌ Введіть промокод', promoApplied:'✅ Промокод застосовано!', loadFriends:'❌ Спочатку завантажте друзів', fillAll:'❌ Заповніть усі поля', minClicks:'❌ Мінімум 250 кліків', minDep:'❌ Мінімальний депозит 0.1 Gram', already:'❌ Уже отримано', notEnough:'❌ Ще недостатньо друзів', linkCopied:'✅ Посилання скопійовано!' }
+      toast:{ claimed:'✅ Отримано', bonusClaimed:'✅ Бонус отримано', minimum1:'❌ Мінімум 1 Gram для отримання', minimum01collect:'❌ Мінімум для збору: 0.1 Gram', collected:'✅ Зібрано', copiedAddr:'✅ Адресу скопійовано!', copiedMemo:'✅ Коментар скопійовано!', connErr:'❌ Помилка з’єднання', depositConfirmed:'✅ Депозит підтверджено', txProcessed:'⚠️ Транзакцію вже оброблено', minDepSent:'❌ Мінімальний депозит 1 Gram', txNotFound:'❌ Транзакцію не знайдено. Спробуйте ще раз.', reinvested:'✅ Реінвест успішний!', enterAddr:'❌ Введіть адресу гаманця', minWithdraw:'❌ Мінімальне виведення 1 Gram', insufficient:'❌ Недостатньо балансу', withdrew:'✅ Виведення надіслано', enterPromo:'❌ Введіть промокод', promoApplied:'✅ Промокод застосовано!', loadFriends:'❌ Спочатку завантажте друзів', fillAll:'❌ Заповніть усі поля', minClicks:'❌ Мінімум 250 кліків', minDep:'❌ Мінімальний депозит 1 Gram', already:'❌ Уже отримано', notEnough:'❌ Ще недостатньо друзів', linkCopied:'✅ Посилання скопійовано!' }
     },
 
     ar: {
@@ -2624,7 +2624,7 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       depositNav:'الإيداع',
       withdrawNav:'السحب',
 
-      toast:{ claimed:'✅ تم الاستلام', bonusClaimed:'✅ تم استلام المكافأة', minimum1:'❌ الحد الأدنى 1 Gram للاستلام', minimum01collect:'❌ الحد الأدنى للجمع 0.1 Gram', collected:'✅ تم الجمع', copiedAddr:'✅ تم نسخ العنوان!', copiedMemo:'✅ تم نسخ التعليق!', connErr:'❌ خطأ في الاتصال', depositConfirmed:'✅ تم تأكيد الإيداع', txProcessed:'⚠️ تمت معالجة المعاملة مسبقًا', minDepSent:'❌ الحد الأدنى للإيداع 0.1 Gram', txNotFound:'❌ لم يتم العثور على المعاملة. حاول مرة أخرى.', reinvested:'✅ تمت إعادة الاستثمار بنجاح!', enterAddr:'❌ أدخل عنوان المحفظة', minWithdraw:'❌ الحد الأدنى للسحب 0.2 Gram', insufficient:'❌ الرصيد غير كافٍ', withdrew:'✅ تم إرسال السحب', enterPromo:'❌ أدخل رمز ترويج', promoApplied:'✅ تم تطبيق الرمز!', loadFriends:'❌ حمّل الأصدقاء أولًا', fillAll:'❌ املأ جميع الحقول', minClicks:'❌ الحد الأدنى 250 نقرة', minDep:'❌ الحد الأدنى للإيداع 0.1 Gram', already:'❌ تم الاستلام مسبقًا', notEnough:'❌ لا يوجد عدد كافٍ من الأصدقاء', linkCopied:'✅ تم نسخ الرابط!' }
+      toast:{ claimed:'✅ تم الاستلام', bonusClaimed:'✅ تم استلام المكافأة', minimum1:'❌ الحد الأدنى 1 Gram للاستلام', minimum01collect:'❌ الحد الأدنى للجمع 0.1 Gram', collected:'✅ تم الجمع', copiedAddr:'✅ تم نسخ العنوان!', copiedMemo:'✅ تم نسخ التعليق!', connErr:'❌ خطأ في الاتصال', depositConfirmed:'✅ تم تأكيد الإيداع', txProcessed:'⚠️ تمت معالجة المعاملة مسبقًا', minDepSent:'❌ الحد الأدنى للإيداع 1 Gram', txNotFound:'❌ لم يتم العثور على المعاملة. حاول مرة أخرى.', reinvested:'✅ تمت إعادة الاستثمار بنجاح!', enterAddr:'❌ أدخل عنوان المحفظة', minWithdraw:'❌ الحد الأدنى للسحب 1 Gram', insufficient:'❌ الرصيد غير كافٍ', withdrew:'✅ تم إرسال السحب', enterPromo:'❌ أدخل رمز ترويج', promoApplied:'✅ تم تطبيق الرمز!', loadFriends:'❌ حمّل الأصدقاء أولًا', fillAll:'❌ املأ جميع الحقول', minClicks:'❌ الحد الأدنى 250 نقرة', minDep:'❌ الحد الأدنى للإيداع 1 Gram', already:'❌ تم الاستلام مسبقًا', notEnough:'❌ لا يوجد عدد كافٍ من الأصدقاء', linkCopied:'✅ تم نسخ الرابط!' }
     }
   };
 
@@ -2697,8 +2697,8 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       [/^✅ Comment copied!$/, t.copiedMemo],
       [/^❌ Minimum 1 Gram to claim$/, t.minimum1],
       [/^❌ Minimum collect is 0.1 Gram$/, t.minimum01collect],
-      [/^❌ Minimum withdrawal is 0.2 Gram$/, t.minWithdraw],
-      [/^❌ Minimum deposit is 0.1 Gram$/, t.minDep],
+      [/^❌ Minimum withdrawal is 1 Gram$/, t.minWithdraw],
+      [/^❌ Minimum deposit is 1 Gram$/, t.minDep],
       [/^❌ Enter wallet address$/, t.enterAddr],
       [/^❌ Insufficient balance$/, t.insufficient],
       [/^❌ Enter a promo code$/, t.enterPromo],
@@ -2710,9 +2710,8 @@ document.getElementById('lbTabDep').addEventListener('click', () => {
       [/^❌ Connection error$/, t.connErr],
       [/^⚠️ Transaction already processed$/, t.txProcessed],
       [/^❌ Transaction not found\. Try again\.$/, t.txNotFound],
-      [/^❌ Min deposit 0.1 Gram — sent: ([\d.]+) Gram$/, `${t.minDepSent} — sent: $1 Gram`],
-      [/^❌ Minimum deposit is 0.1 Gram$/, t.minDep],
-      [/^❌ Minimum reinvest is 0.1 Gram$/, t.minDep],
+      [/^❌ Min deposit 1 Gram — sent: ([\d.]+) Gram$/, `${t.minDepSent} — sent: $1 Gram`],
+      [/^❌ Minimum reinvest is 0.1 Gram$/, t.minDep.replace('1 Gram', '0.1 Gram')],
       [/^❌ The task title should not be empty$/, t.fillAll],
     ];
 

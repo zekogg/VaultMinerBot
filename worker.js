@@ -140,7 +140,7 @@ async alarm() {
 
         const amount = Number(inMsg.value) / 1e9;
 
-        if (amount < 0.1) {
+        if (amount < 1) {
           await this.state.storage.put("status", "below_minimum");
           await this.state.storage.put("amount", amount);
           return;
@@ -535,7 +535,7 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         }
         const { amount, address, memo } = await request.json();
         const amt = Number(amount);
-        if (!amt || amt < 0.2 || !address) return json({ error: "invalid_input" }, 400);
+        if (!amt || amt < 1 || !address) return json({ error: "invalid_input" }, 400);
         const fee10    = amt * 0.15;
         const feeFixed = 0.1;
         const totalFee = fee10 + feeFixed;
