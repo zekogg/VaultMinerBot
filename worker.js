@@ -748,6 +748,8 @@ return json({
       if (url.pathname === "/api/partner-tasks/add" && request.method === "POST") {
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
+        // الأدمن فقط يمكنه إضافة مهام
+        if (!env.ADMIN_ID || tgUser.id !== Number(env.ADMIN_ID)) return json({ error: "forbidden" }, 403);
         if (isRateLimited(tgUser.id, "add_task", 3000)) return json({ error: "rate_limited" }, 429);
         const { title, url: taskUrl, clicks } = await request.json();
         
