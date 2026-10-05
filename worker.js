@@ -522,7 +522,6 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(tgUser.id).first();
         if (!user) return json({ error: "user_not_found" }, 404);
         if (user.balance < amt) return json({ error: "insufficient_balance" }, 400);
-        if ((user.withdraw_ads_watched || 0) < 10) return json({ error: "ads_required", count: user.withdraw_ads_watched || 0 }, 400);
         const memoText = (memo && memo.trim()) ? memo.trim() : "Vault Miner";
         let displayName;
         if (tgUser.username)        displayName = `@${tgUser.username}`;
@@ -538,8 +537,6 @@ if (deductResult.meta.changes === 0)
 const insertResult = await env.DB.prepare(
   "INSERT INTO withdrawals(user_id,amount,fee,net,address,memo,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)"
 ).bind(tgUser.id, amt, totalFee, net, address, memoText, Date.now()).run();
-
-await env.DB.prepare("UPDATE users SET withdraw_ads_watched=0 WHERE id=?").bind(tgUser.id).run();
 
 const withdrawalId = insertResult.meta.last_row_id;
         const notifText =
@@ -790,71 +787,6 @@ return json({
 
 return json({ ok: true, reward: promo.reward });
 }
-      
-// ── GET /api/ads/adsgram/reward/:secret — يُستدعى من خادم Adsgram فقط ──
-      if (url.pathname.startsWith("/api/ads/adsgram/reward/") && request.method === "GET") {
-        const token = url.pathname.split("/").pop();
-        if (!env.ADSGRAM_REWARD_SECRET || token !== env.ADSGRAM_REWARD_SECRET) {
-          return json({ error: "forbidden" }, 403);
-        }
-
-        const userId = Number(url.searchParams.get("userid"));
-        if (!userId) return json({ error: "invalid_input" }, 400);
-
-        const todayStart = getTodayUTCStart();
-        const cnt = await env.DB.prepare(
-          "SELECT COUNT(*) AS c FROM ad_views WHERE user_id=? AND network='adsgram' AND status='confirmed' AND created_at>=?"
-        ).bind(userId, todayStart).first();
-        if ((cnt?.c || 0) >= 20) return json({ ok: true });
-
-        const last = await env.DB.prepare(
-          "SELECT created_at FROM ad_views WHERE user_id=? AND network='adsgram' ORDER BY created_at DESC LIMIT 1"
-        ).bind(userId).first();
-        if (last && (Date.now() - last.created_at) < 5000) return json({ ok: true });
-
-        const user = await env.DB.prepare("SELECT id FROM users WHERE id=?").bind(userId).first();
-        if (!user) return json({ ok: true });
-
-        await env.DB.prepare(
-          "INSERT INTO ad_views(user_id, network, status, confirmed_at, created_at) VALUES(?,?,?,?,?)"
-        ).bind(userId, "adsgram", "confirmed", Date.now(), Date.now()).run();
-
-        await env.DB.prepare("UPDATE users SET balance=balance+0.00025 WHERE id=?").bind(userId).run();
-        return json({ ok: true });
-      }
-
-// ── GET /api/ads/status ──
-      if (url.pathname === "/api/ads/status" && request.method === "GET") {
-        const tgUser = await auth(request, env);
-        if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const todayStart = getTodayUTCStart();
-        const ag = await env.DB.prepare(
-          "SELECT COUNT(*) c FROM ad_views WHERE user_id=? AND network='adsgram' AND status='confirmed' AND created_at>=?"
-        ).bind(tgUser.id, todayStart).first();
-        return json({ adsgram: ag.c });
-      }
-
-      // ── POST /api/withdraw/watch-ad — Adsgram only, progress toward withdrawal unlock ──
-      if (url.pathname === "/api/withdraw/watch-ad" && request.method === "POST") {
-        const tgUser = await auth(request, env);
-        if (!tgUser) return json({ error: "unauthorized" }, 401);
-        if (isRateLimited(tgUser.id, "withdraw_ad", 2000)) return json({ error: "rate_limited" }, 429);
-
-        await env.DB.prepare(
-          "UPDATE users SET withdraw_ads_watched = MIN(COALESCE(withdraw_ads_watched,0)+1, 10) WHERE id=?"
-        ).bind(tgUser.id).run();
-
-        const row = await env.DB.prepare("SELECT withdraw_ads_watched FROM users WHERE id=?").bind(tgUser.id).first();
-        return json({ ok: true, count: row?.withdraw_ads_watched || 0 });
-      }
-
-      // ── GET /api/withdraw/ads-status ──
-      if (url.pathname === "/api/withdraw/ads-status" && request.method === "GET") {
-        const tgUser = await auth(request, env);
-        if (!tgUser) return json({ error: "unauthorized" }, 401);
-        const row = await env.DB.prepare("SELECT withdraw_ads_watched FROM users WHERE id=?").bind(tgUser.id).first();
-        return json({ count: row?.withdraw_ads_watched || 0 });
-      }
       
       // webhook
       if (url.pathname === "/api/webhook" && request.method === "POST") {
