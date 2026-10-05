@@ -155,12 +155,14 @@ async alarm() {
 
         const minedOld = computeMined(userRow);
         const settleNow = Date.now();
+        // سرعة التعدين تُحسب على المبلغ + البونص، وسجل الإيداع يحفظ المبلغ الحقيقي
+        const credited = amount * (1 + WEEKLY_DEPOSIT_BONUS);
 
         try {
           const batchRes = await this.env.DB.batch([
             this.env.DB.prepare(
               "UPDATE users SET balance=balance+?, deposit_amount=deposit_amount+?, last_claim=? WHERE id=? AND last_claim=?"
-            ).bind(minedOld, amount, settleNow, userId, userRow.last_claim),
+            ).bind(minedOld, credited, settleNow, userId, userRow.last_claim),
             this.env.DB.prepare(
               "INSERT INTO deposits(user_id, tx_hash, amount, status, created_at, memo) VALUES(?, ?, ?, 'confirmed', ?, ?)"
             ).bind(userId, txHash, amount, Date.now(), comment),
@@ -170,7 +172,7 @@ async alarm() {
           if (batchRes[0].meta.changes === 0) {
             await this.env.DB.prepare(
               "UPDATE users SET deposit_amount=deposit_amount+? WHERE id=?"
-            ).bind(amount, userId).run();
+            ).bind(credited, userId).run();
           }
         } catch (e) {
           const errMsg = String(e?.message || e).toLowerCase();
@@ -195,7 +197,7 @@ async alarm() {
 
         await this.state.storage.put("status", "found");
         await this.state.storage.put("amount", amount);
-        await this.notifyUser(userId, amount);
+        await this.notifyUser(userId, amount, credited);
         return;
       }
     } else {  
@@ -210,7 +212,10 @@ async alarm() {
   }
 }
 
-  async notifyUser(userId, amount) {
+  async notifyUser(userId, amount, credited = amount) {
+    const bonusLine = credited > amount
+      ? `🎁 Weekly bonus: <b>+${(credited - amount).toFixed(4)} Gram</b> mining power\n`
+      : "";
     if (!this.env.BOT_TOKEN) return;
     try {
       await fetch(`https://api.telegram.org/bot${this.env.BOT_TOKEN}/sendMessage`, {
@@ -221,7 +226,8 @@ async alarm() {
           text:
             `✅ <b>Deposit Confirmed!</b>\n\n` +
             `💰 Amount: <b>${amount.toFixed(4)} Gram</b>\n` +
-            `📈 Daily earnings: <b>+${(amount * 0.10).toFixed(4)} Gram/day</b>\n\n` +
+            bonusLine +
+            `📈 Daily earnings: <b>+${(credited * 0.10).toFixed(4)} Gram/day</b>\n\n` +
             `⛏️ Your mining speed has been updated!`,
           parse_mode: "HTML",
         }),
@@ -284,6 +290,16 @@ async function getOrCreateUser(env, tgUser, referrerId) {
 function getTodayUTCStart() {
   const now = new Date();
   return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+
+// ── Weekly Deposit Bonus: كل إيداع يزيد سرعة التعدين بـ 150% إضافية ──
+const WEEKLY_DEPOSIT_BONUS = 1.5; // +150% — ضع 0 لإيقاف البونص
+
+// المؤقت موحّد للجميع: ينتهي كل يوم اثنين 00:00 UTC ثم يبدأ أسبوع جديد
+function weeklyBonusEndsAt(now = Date.now()) {
+  const d = new Date(now);
+  const daysUntilMonday = ((8 - d.getUTCDay()) % 7) || 7;
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + daysUntilMonday);
 }
 
 const WITHDRAW_FRIENDS_SINCE = Date.UTC(2026, 6, 9); // 9 July 2026 00:00 UTC — friends referred before this don't count toward withdrawal unlock
@@ -368,8 +384,8 @@ return json({
 if (mined < 0.1) return json({ error: "min_collect_0.1" }, 400);
 const now = Date.now();
 const claimResult = await env.DB.prepare(
-  "UPDATE users SET balance=balance+?, last_claim=?, last_collect_at=? WHERE id=? AND last_claim=?"
-).bind(mined, now, now, user.id, user.last_claim).run();
+  "UPDATE users SET balance=balance+?, last_claim=? WHERE id=? AND last_claim=?"
+).bind(mined, now, user.id, user.last_claim).run();
 
 if (claimResult.meta.changes === 0) 
   return json({ error: "already_claimed" }, 400);
@@ -401,6 +417,12 @@ return json({ ok: true, claimed: mined, balance: user.balance + mined });
         const tgUser = await auth(request, env);
         if (!tgUser) return json({ error: "unauthorized" }, 401);
         return json({ address: env.DEPOSIT_ADDRESS || "", memo: String(tgUser.id) });
+      }
+
+      // ════ deposit-bonus → نسبة البونص الأسبوعي ووقت انتهائه ════
+      if (url.pathname === "/api/deposit-bonus" && request.method === "GET") {
+        const now = Date.now();
+        return json({ percent: WEEKLY_DEPOSIT_BONUS * 100, ends_at: weeklyBonusEndsAt(now), now });
       }
 
       // ════ deposit/check → يُشغّل DO ════
@@ -1161,46 +1183,6 @@ if (url.pathname === "/api/leaderboard" && request.method === "GET") {
   });
 }
 
-// ── GET /api/top-miners ──
-if (url.pathname === "/api/top-miners" && request.method === "GET") {
-  const tgUser = await auth(request, env);
-  if (!tgUser) return json({ error: "unauthorized" }, 401);
-
-  const today    = new Date().toISOString().slice(0, 10);
-  const cache    = caches.default;
-  const cacheKey = new Request(`https://cache.vault/top-miners-${today}`);
-
-  const cachedRes = await cache.match(cacheKey);
-  if (cachedRes) {
-    const cached = await cachedRes.json();
-    return json(cached);
-  }
-
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-  const { results } = await env.DB.prepare(
-    "SELECT id, username, first_name, photo_url, deposit_amount FROM users WHERE last_collect_at >= ? ORDER BY deposit_amount DESC LIMIT 5"
-  ).bind(cutoff).all();
-
-  const miners = results.map(u => ({
-    id: u.id,
-    username: u.username,
-    first_name: u.first_name,
-    photo_url: u.photo_url,
-    profit24: (u.deposit_amount || 0) * 0.10,
-  }));
-
-  const data = { miners };
-
-  const now2 = new Date();
-  const nextMidnight = Date.UTC(now2.getUTCFullYear(), now2.getUTCMonth(), now2.getUTCDate() + 1, 0, 0, 0, 0);
-  const maxAge = Math.max(60, Math.floor((nextMidnight - Date.now()) / 1000));
-
-  await cache.put(cacheKey, new Response(JSON.stringify(data), {
-    headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${maxAge}` }
-  }));
-
-  return json(data);
-}
       
       if (url.pathname.startsWith("/api/")) return json({ error: "not_found" }, 404);
       return env.ASSETS.fetch(request);
